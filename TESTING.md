@@ -11,18 +11,24 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 
 - [ ] **Windows:** run `Corestart-Reach_…_x64-setup.exe`. SmartScreen warns (unsigned test
       build): **More info → Run anyway**. Reach is in the Start menu.
-- [ ] **Fedora:** `sudo dnf install ./Corestart-Reach-…x86_64.rpm`. dnf also installs `freerdp`.
-- [ ] **Ubuntu:** `sudo apt install ./Corestart-Reach_…_amd64.deb`. apt also installs `freerdp3-x11`.
+- [ ] **Fedora (GNOME and KDE):** `flatpak install --user ./corestart-reach.flatpak`. It downloads
+      the GNOME 50 runtime from Flathub the first time.
+- [ ] **Ubuntu:** first `sudo apt install flatpak`, add Flathub
+      (`flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`),
+      log out and back in, then install the file as above.
 - [ ] Reach shows up in the app menu / Activities search when you type "RDP" or "SSH",
       with the Corestart icon.
 - [ ] Opening it shows the Reach icon in the taskbar / dock (not a generic one).
+- [ ] GNOME Software / KDE Discover show Reach with its description (from the metainfo).
+- [ ] Nothing else needs installing: RDP works without a system FreeRDP.
 
 ## 2. Vault
 
 - [ ] First start asks you to create a master password (8+ characters, typed twice).
 - [ ] Lock (Ctrl+L), then unlock with the right password. A wrong password is refused.
 - [ ] Quit and restart: your connections are still there.
-- [ ] Linux: `ls -l ~/.local/share/network.corestart.reach/` shows `vault.json` as `-rw-------`.
+- [ ] Linux: `ls -l ~/.var/app/network.corestart.reach/data/network.corestart.reach/` shows
+      `vault.json` as `-rw-------`.
 - [ ] Settings → change the master password. The old one no longer unlocks; the new one does.
       A wrong "current password" is refused.
 - [ ] Settings → auto-lock after 5 minutes. Leave Reach alone for 5 minutes: it locks and says
@@ -64,7 +70,9 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 - [ ] First connection to a server asks you to trust its key (type `yes`); the second
       doesn't ask again.
 - [ ] Password login, saved and typed in the terminal.
-- [ ] Key file set on the connection (with and without a passphrase).
+- [ ] Key file set on the connection (with and without a passphrase), typed in and picked with
+      **Browse…**. On Linux, also try a key kept outside `~/.ssh` (the Flatpak can only see it
+      when picked with Browse…).
 - [ ] No key set, but you have `~/.ssh/id_ed25519` or keys in ssh-agent: logs in without
       a password, like the `ssh` command. (Windows: the "OpenSSH Authentication Agent"
       service, if you use it.)
@@ -92,14 +100,15 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 ## 7. Uninstall
 
 - [ ] **Windows:** Settings → Apps → Corestart Reach → Uninstall.
-- [ ] **Fedora:** `sudo dnf remove corestart-reach` · **Ubuntu:** `sudo apt remove corestart-reach`
+- [ ] **Linux:** `flatpak uninstall network.corestart.reach`
 - [ ] Your vault stays in place (see the README for where), so reinstalling keeps your
-      connections. Delete that folder to remove it.
+      connections. On Linux, `flatpak uninstall --delete-data network.corestart.reach` removes
+      it too.
 
 ## System notes
 
 - **Fedora GNOME / Ubuntu:** GNOME has no system tray; Reach doesn't use one.
-- **Fedora KDE with NVIDIA:** the Wayland crash fix is built in; if the window ever fails
-  to open, run `corestart-reach` from a terminal and send the output.
-- **Ubuntu:** if the window is blank or the app won't start, run `corestart-reach` from a
-  terminal and send the output (Ubuntu restricts some sandboxing that WebKitGTK uses).
+- **Any Linux:** if the window doesn't open or is blank, run
+  `flatpak run network.corestart.reach` from a terminal and send the output.
+- **NVIDIA:** the Wayland crash fix is built in. Flatpak also needs its NVIDIA driver
+  add-on to match your driver; `flatpak update` installs it.

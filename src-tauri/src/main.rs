@@ -65,6 +65,8 @@ fn main() {
         // overwrite each other's changes. Starting it again brings this one forward.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
         .plugin(tauri_plugin_clipboard_manager::init())
+        // File picker for SSH key files; goes through the desktop portal in a Flatpak.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;

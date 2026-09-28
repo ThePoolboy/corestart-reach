@@ -12,19 +12,19 @@
       "presentation": { "panel": "dedicated", "clear": true }
     },
     {
-      "label": "Reach: Build RPM",
-      "detail": "Build an installable package into src-tauri/target/release/bundle/rpm/",
+      "label": "Reach: Build and install Flatpak",
+      "detail": "Build the Flatpak (with FreeRDP) and install it for your user. Run it from the app menu or with: flatpak run network.corestart.reach",
       "type": "shell",
-      "command": "npm run tauri build -- --bundles rpm",
+      "command": "flatpak run org.flatpak.Builder --user --install --force-clean --disable-rofiles-fuse build-flatpak flatpak/network.corestart.reach.yml",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": [],
       "presentation": { "panel": "dedicated", "clear": true }
     },
     {
       "label": "Reach: Run checks",
-      "detail": "Type-check the interface and run the Rust tests.",
+      "detail": "Type-check the interface and run the Rust linter and tests.",
       "type": "shell",
-      "command": "npm run check && cd src-tauri && cargo test",
+      "command": "npm run check && cd src-tauri && cargo clippy --all-targets && cargo test",
       "group": "test",
       "problemMatcher": [],
       "presentation": { "panel": "dedicated", "clear": true }

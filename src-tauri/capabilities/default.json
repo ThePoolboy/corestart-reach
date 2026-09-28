@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core APIs for the main window and SSH session windows.",
+  "description": "Core APIs for the main window and SSH session windows; the main window may also open the file picker (for SSH key files).",
   "windows": ["main", "ssh-*"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "dialog:allow-open",
+      "windows": ["main"]
+    }
+  ]
 }

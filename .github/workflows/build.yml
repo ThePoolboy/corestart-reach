@@ -1,5 +1,7 @@
-# Checks the code and builds installers for Linux and Windows on every push.
-# The packages are attached to each run under "Artifacts" (kept 30 days).
+# Checks the code and builds the two things we ship, on every push:
+#   - the Flatpak (all Linux distributions)
+#   - the Windows installer (setup.exe)
+# Both are attached to each run under "Artifacts" (kept 30 days).
 name: Build
 
 on:
@@ -17,33 +19,16 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Built on the oldest supported Ubuntu so the packages also run on
-          # every newer Ubuntu and Fedora (programs need a glibc at least as new
-          # as the one they were built with).
-          - name: Linux
-            os: ubuntu-22.04
-            artifact: corestart-reach-linux
-          - name: Windows
-            os: windows-latest
-            artifact: corestart-reach-windows
-    runs-on: ${{ matrix.os }}
-
+  checks:
+    name: Checks (Linux)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Linux build libraries
-        if: runner.os == 'Linux'
+      - name: Install WebKitGTK
         run: |
           sudo apt-get update
-          # WebKitGTK for the app; the rest is for AppImage bundling.
-          sudo apt-get install -y --no-install-recommends \
-            build-essential libwebkit2gtk-4.1-dev librsvg2-dev patchelf file xdg-utils
+          sudo apt-get install -y --no-install-recommends build-essential libwebkit2gtk-4.1-dev
 
       - uses: actions/setup-node@v7
         with:
@@ -69,41 +54,63 @@ jobs:
           cargo clippy --all-targets -- -D warnings
           cargo test
 
-      - name: Build Linux packages (deb, rpm)
-        if: runner.os == 'Linux'
-        run: npm run tauri build -- --bundles deb,rpm
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
 
-      # AppImage bundling downloads extra tools and is the most fragile step;
-      # don't let it block the deb and rpm.
-      - name: Build Linux AppImage
-        if: runner.os == 'Linux'
-        continue-on-error: true
-        run: npm run tauri build -- --bundles appimage
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: Build Windows installers (setup.exe, msi)
-        if: runner.os == 'Windows'
-        run: npm run tauri build -- --bundles nsis,msi
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
-      # "Corestart Reach_0.1.0_amd64.deb" -> "Corestart-Reach_0.1.0_amd64.deb":
-      # no quoting needed when installing from a terminal.
-      - name: Remove spaces from package names
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Lint and test the Rust core on Windows
+        working-directory: src-tauri
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Build setup.exe
+        run: npm run tauri build -- --bundles nsis
+
+      # "Corestart Reach_0.1.0_x64-setup.exe" -> "Corestart-Reach_0.1.0_x64-setup.exe"
+      - name: Remove spaces from the file name
         shell: bash
         run: |
-          shopt -s nullglob
-          cd src-tauri/target/release/bundle
-          for f in deb/*.deb rpm/*.rpm appimage/*.AppImage nsis/*.exe msi/*.msi; do
-            [[ "$f" == *" "* ]] && mv "$f" "${f// /-}"
-          done
-          ls -l deb rpm appimage nsis msi 2>/dev/null || true
+          cd src-tauri/target/release/bundle/nsis
+          for f in *.exe; do [[ "$f" == *" "* ]] && mv "$f" "${f// /-}"; done
+          ls -l
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
+          name: corestart-reach-windows
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 30
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/rpm/*.rpm
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/nsis/*-setup.exe
-            src-tauri/target/release/bundle/msi/*.msi
+
+  flatpak:
+    name: Flatpak
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/network.corestart.reach.yml
+          bundle: corestart-reach.flatpak
+          artifact-name: corestart-reach-flatpak
+          cache-key: flatpak-builder-${{ hashFiles('flatpak/network.corestart.reach.yml') }}

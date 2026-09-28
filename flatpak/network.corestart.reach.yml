@@ -1,0 +1,140 @@
+# Flatpak build of Corestart Reach, with FreeRDP built in.
+#
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#     build-flatpak flatpak/network.corestart.reach.yml
+#
+# Test builds download Rust crates and npm packages while building (the
+# --share=network below). Flathub builds offline, so submitting there will need
+# generated source lists instead; see flatpak/README.md.
+id: network.corestart.reach
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node24
+command: corestart-reach
+
+finish-args:
+  - --share=ipc
+  - --share=network        # RDP and SSH connections
+  - --socket=wayland       # the Reach windows
+  - --socket=x11           # FreeRDP's RDP window is an X11 client (XWayland on Wayland)
+  - --device=dri           # GPU drawing for the interface and the RDP window
+  - --socket=pulseaudio    # sound from the remote desktop
+  - --socket=ssh-auth      # your ssh-agent
+  - --filesystem=~/.ssh    # SSH keys and known_hosts, shared with OpenSSH
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - /share/man
+  - "*.a"
+  - "*.la"
+
+modules:
+  # FreeRDP's X11 client needs libxkbfile, which the GNOME runtime doesn't ship.
+  - name: libxkbfile
+    buildsystem: meson
+    config-opts:
+      - -Ddefault_library=shared
+    sources:
+      - type: archive
+        url: https://www.x.org/releases/individual/lib/libxkbfile-1.1.3.tar.xz
+        sha256: a9b63eea997abb9ee6a8b4fbb515831c841f471af845a09de443b28003874bec
+        x-checker-data:
+          type: anitya
+          project-id: 1781
+          url-template: https://www.x.org/releases/individual/lib/libxkbfile-$version.tar.xz
+
+  # The RDP client. Only what Reach uses: the X11 client, clipboard, sound and
+  # auto-reconnect. No server parts, and no codecs the runtime can't provide.
+  - name: freerdp
+    buildsystem: cmake-ninja
+    builddir: true # FreeRDP refuses to build inside its source tree
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_LIBDIR=lib
+      - -DUSE_VERSION_FROM_GIT_TAG=OFF
+      - -DWITH_X11=ON
+      - -DWITH_WAYLAND=OFF
+      - -DWITH_CLIENT_SDL=OFF
+      - -DWITH_SERVER=OFF
+      - -DWITH_SHADOW=OFF
+      - -DWITH_PROXY=OFF
+      - -DWITH_PLATFORM_SERVER=OFF
+      - -DWITH_SAMPLE=OFF
+      - -DWITH_WINPR_TOOLS=OFF
+      - -DWITH_MANPAGES=OFF
+      - -DWITH_CCACHE=OFF
+      - -DWITH_VERBOSE_WINPR_ASSERT=OFF
+      # Sound through PulseAudio (PipeWire provides it on modern desktops).
+      - -DWITH_PULSE=ON
+      - -DWITH_ALSA=OFF
+      - -DWITH_OSS=OFF
+      # NTLM login needs RC4 and MD4, which OpenSSL 3 no longer provides by default.
+      - -DWITH_INTERNAL_RC4=ON
+      - -DWITH_INTERNAL_MD4=ON
+      - -DWITH_INTERNAL_MD5=ON
+      # Not available in the runtime, or not used by Reach.
+      - -DWITH_FFMPEG=OFF
+      - -DWITH_DSP_FFMPEG=OFF
+      - -DWITH_VIDEO_FFMPEG=OFF
+      - -DWITH_SWSCALE=OFF
+      - -DWITH_OPENH264=OFF
+      - -DWITH_CUPS=OFF
+      - -DWITH_PCSC=OFF
+      - -DWITH_SMARTCARD_PCSC=OFF
+      - -DWITH_PKCS11=OFF
+      - -DWITH_FUSE=OFF
+      - -DWITH_KRB5=OFF
+      - -DWITH_JSON_DISABLED=ON
+      - -DWITH_AAD=OFF
+      - -DWITH_URIPARSER=OFF
+      - -DWITH_SYSTEMD=OFF
+      - -DCHANNEL_URBDRC=OFF
+    sources:
+      - type: archive
+        url: https://github.com/FreeRDP/FreeRDP/releases/download/3.32.1/freerdp-3.32.1.tar.gz
+        sha256: 3021cf8848efbd0064664e187cb61e6101e4e74a4d8ffb495d9f7715e22d67de
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/FreeRDP/FreeRDP/releases/latest
+          version-query: .tag_name
+          url-query: '"https://github.com/FreeRDP/FreeRDP/releases/download/" + $version + "/freerdp-" + $version + ".tar.gz"'
+
+  - name: corestart-reach
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
+      env:
+        CARGO_HOME: /run/build/corestart-reach/cargo
+        npm_config_cache: /run/build/corestart-reach/npm-cache
+        CARGO_TERM_COLOR: never
+      build-args:
+        - --share=network # test builds only; Flathub needs offline sources
+    build-commands:
+      - npm ci --no-audit --no-fund
+      - npm run build
+      # tauri/custom-protocol serves the built interface from inside the binary
+      # (what `tauri build` does), instead of the dev server.
+      - cargo build --release --locked --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/corestart-reach /app/bin/corestart-reach
+      - install -Dm644 flatpak/network.corestart.reach.desktop /app/share/applications/network.corestart.reach.desktop
+      - install -Dm644 flatpak/network.corestart.reach.metainfo.xml /app/share/metainfo/network.corestart.reach.metainfo.xml
+      - install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/network.corestart.reach.svg
+      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/network.corestart.reach.png
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/network.corestart.reach.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/network.corestart.reach.png
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - node_modules
+          - dist
+          - src-tauri/target
+          - src-tauri/gen
+          - build-flatpak
+          - .flatpak-builder

@@ -63,8 +63,15 @@ mod linux {
         "wlfreerdp",
     ];
 
-    const INSTALL_HINT: &str =
-        "Fedora: sudo dnf install freerdp\nUbuntu / Debian: sudo apt install freerdp3-x11";
+    /// What to do about a missing FreeRDP. The Flatpak ships its own, so there
+    /// it means a broken build; from source it's the distro package.
+    fn install_hint() -> &'static str {
+        if std::env::var_os("FLATPAK_ID").is_some() {
+            "FreeRDP should be included in the Flatpak. Please report this as a bug."
+        } else {
+            "Fedora: sudo dnf install freerdp\nUbuntu / Debian: sudo apt install freerdp3-x11"
+        }
+    }
 
     /// The first FreeRDP 3 client on PATH. FreeRDP 2 can't be used: it has no
     /// `/args-from`, so the password would have to go on the command line.
@@ -86,10 +93,11 @@ mod linux {
         }
         Err(match too_old {
             Some((exe, major)) => msg(format!(
-                "Corestart Reach needs FreeRDP 3, but {} is FreeRDP {major}.\n{INSTALL_HINT}",
-                exe.display()
+                "Corestart Reach needs FreeRDP 3, but {} is FreeRDP {major}.\n{}",
+                exe.display(),
+                install_hint()
             )),
-            None => msg(format!("FreeRDP isn't installed.\n{INSTALL_HINT}")),
+            None => msg(format!("FreeRDP isn't installed.\n{}", install_hint())),
         })
     }
 

@@ -27,29 +27,37 @@ changed in Settings; the vault and its backup are re-encrypted with the new one.
 
 ## Install
 
+Two downloads cover everything: a **Flatpak** for every Linux distribution (FreeRDP
+included) and an **installer** for Windows.
+
 Test builds are made automatically for every change: open the repository's
 [**Actions**](https://github.com/ThePoolboy/corestart-reach/actions) tab, pick the latest
 green **Build** run, and download from **Artifacts** at the bottom (you need to be signed in
-to GitHub). Unzip it to get the package for your system.
+to GitHub). Unzip it to get the file.
 
-| System | Package | Install |
+| System | Download | Install |
 | --- | --- | --- |
-| Windows 10 / 11 | `Corestart-Reach_0.1.0_x64-setup.exe` | Run it. No admin rights needed. |
-| Fedora 40+ | `Corestart-Reach-0.1.0-1.x86_64.rpm` | `sudo dnf install ./Corestart-Reach-0.1.0-1.x86_64.rpm` |
-| Ubuntu 22.04+ / Debian 12+ | `Corestart-Reach_0.1.0_amd64.deb` | `sudo apt install ./Corestart-Reach_0.1.0_amd64.deb` |
-| Other Linux | `Corestart-Reach_0.1.0_amd64.AppImage` | `chmod +x` it and run it. Needs FreeRDP 3 installed. |
+| Windows 10 / 11 | `corestart-reach-windows` → `Corestart-Reach_0.1.0_x64-setup.exe` | Run it. No admin rights needed. |
+| Linux | `corestart-reach-flatpak` → `corestart-reach.flatpak` | `flatpak install --user ./corestart-reach.flatpak` |
 
 - **Windows** shows "Windows protected your PC" the first time, because test builds aren't
   code-signed yet. Click **More info → Run anyway**.
-- **Linux** packages pull in FreeRDP 3 automatically (dnf and apt install recommended
-  packages by default). If RDP says FreeRDP is missing:
-  `sudo dnf install freerdp` or `sudo apt install freerdp3-x11`.
+- **Linux:** Fedora has Flatpak and Flathub set up already. **Ubuntu** needs it once:
+  ```bash
+  sudo apt install flatpak
+  flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  ```
+  then log out and back in. Installing the file downloads the GNOME runtime it needs from
+  Flathub the first time. Start Reach from the app menu, or with `flatpak run network.corestart.reach`.
+
+The Flatpak's permissions and how it's built are described in [flatpak/README.md](flatpak/README.md).
 
 ## How your data is stored
 
 | | |
 | --- | --- |
-| Vault file (Linux) | `~/.local/share/network.corestart.reach/vault.json` (owner-only, 0600) |
+| Vault file (Flatpak) | `~/.var/app/network.corestart.reach/data/network.corestart.reach/vault.json` (owner-only, 0600) |
+| Vault file (Linux, built from source) | `~/.local/share/network.corestart.reach/vault.json` |
 | Vault file (Windows) | `%APPDATA%\network.corestart.reach\vault.json` |
 | Key derivation | Argon2id, 64 MiB memory, 3 passes, random 16-byte salt |
 | Encryption | XChaCha20-Poly1305, fresh random nonce on every save |
@@ -84,12 +92,13 @@ Only one copy of Reach runs at a time; starting it again brings the open one for
 ## Building from source
 
 You need Rust (via [rustup](https://rustup.rs)), Node.js 20+ and WebKitGTK on Linux.
+Running from source on Linux uses your system's FreeRDP 3 for RDP.
 
 ```bash
 # Fedora
-sudo dnf group install c-development && sudo dnf install nodejs webkit2gtk4.1-devel
+sudo dnf group install c-development && sudo dnf install nodejs webkit2gtk4.1-devel freerdp
 # Ubuntu / Debian
-sudo apt install build-essential nodejs npm libwebkit2gtk-4.1-dev
+sudo apt install build-essential nodejs npm libwebkit2gtk-4.1-dev freerdp3-x11
 ```
 
 Windows needs the "Desktop development with C++" workload from Visual Studio Build Tools.
@@ -97,14 +106,15 @@ Windows needs the "Desktop development with C++" workload from Visual Studio Bui
 ```bash
 npm install
 npm run tauri dev                          # run with live reload
-npm run tauri build -- --bundles rpm       # or deb, appimage, nsis, msi
+npm run tauri build                        # Windows: setup.exe in src-tauri/target/release/bundle/nsis
 npm run check                              # type-check the interface
 cd src-tauri && cargo clippy && cargo test # lint and test the Rust core
 ```
 
-Every push to `main` runs the same checks and builds the Linux and Windows packages on
-GitHub ([`.github/workflows/build.yml`](.github/workflows/build.yml)). Linux packages are
-built on Ubuntu 22.04 so they run on it and on anything newer.
+The Flatpak is built with flatpak-builder; see [flatpak/README.md](flatpak/README.md).
+
+Every push to `main` runs the checks and builds the Flatpak and the Windows installer on
+GitHub ([`.github/workflows/build.yml`](.github/workflows/build.yml)).
 
 ## Project layout
 
@@ -121,7 +131,7 @@ src-tauri/                  Rust core (Tauri 2)
   src/rdp.rs                launch FreeRDP / mstsc
   src/ssh.rs                SSH sessions (russh)
   src/commands.rs           commands the interface calls
-  linux/                    desktop entry for the Linux packages
+flatpak/                    Flatpak recipe, app menu entry and store listing
 ```
 
 ## Known issues
@@ -133,7 +143,10 @@ src-tauri/                  Rust core (Tauri 2)
 - **Windows with Credential Guard** (on by default on some Windows 11 Enterprise and
   Education machines) can refuse saved RDP credentials. mstsc then asks for the password
   itself.
-- **FreeRDP 2 isn't supported.** Reach needs FreeRDP 3 to pass the password privately.
+- **FreeRDP 2 isn't supported** when running from source: Reach needs FreeRDP 3 to pass the
+  password privately. The Flatpak includes FreeRDP 3.
+- **RDP in the Flatpak** runs FreeRDP's X11 client, so on Wayland it uses XWayland, which
+  every mainstream desktop provides.
 
 ## License
 

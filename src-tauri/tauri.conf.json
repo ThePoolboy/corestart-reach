@@ -28,7 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi", "appimage", "rpm", "deb"],
+    "targets": ["nsis"],
     "publisher": "Corestart Networks",
     "homepage": "https://www.corestart.network",
     "copyright": "Copyright © 2026 Corestart Networks. Licensed under GPL-3.0.",
@@ -44,17 +44,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "linux": {
-      "rpm": {
-        "recommends": ["freerdp"],
-        "desktopTemplate": "linux/corestart-reach.desktop"
-      },
-      "deb": {
-        "section": "net",
-        "recommends": ["freerdp3-x11 | freerdp3-sdl | freerdp3-wayland"],
-        "desktopTemplate": "linux/corestart-reach.desktop"
-      }
-    },
     "windows": {
       "nsis": { "installMode": "currentUser" }
     }

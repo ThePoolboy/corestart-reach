@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { homeDir, join } from '@tauri-apps/api/path';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { untrack } from 'svelte';
   import {
     api,
@@ -113,6 +115,18 @@
       error = errorText(err);
     } finally {
       saving = false;
+    }
+  }
+
+  /** Pick a key file with the system file picker, starting in ~/.ssh. In a
+   *  Flatpak this is also how the sandbox gets to see a key kept elsewhere. */
+  async function browseKey() {
+    try {
+      const start = await join(await homeDir(), '.ssh').catch(() => undefined);
+      const picked = await open({ title: 'Choose a private key file', multiple: false, directory: false, defaultPath: start });
+      if (typeof picked === 'string') form.sshKeyPath = picked;
+    } catch (err) {
+      error = errorText(err);
     }
   }
 
@@ -243,7 +257,10 @@
       {#if form.protocol === 'ssh'}
         <label class="field">
           <span>Private key file</span>
-          <input class="input" bind:value={form.sshKeyPath} placeholder="~/.ssh/id_ed25519 (optional)" spellcheck="false" />
+          <div class="with-button">
+            <input class="input" bind:value={form.sshKeyPath} placeholder="Optional. Without one, your ssh-agent and ~/.ssh keys are tried." spellcheck="false" />
+            <button type="button" class="btn" onclick={browseKey}>Browse…</button>
+          </div>
         </label>
         {#if form.sshKeyPath.trim()}
           {#key resets}
@@ -365,6 +382,13 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-faint);
+  }
+  .with-button {
+    display: flex;
+    gap: 6px;
+  }
+  .with-button .input {
+    flex: 1;
   }
   .using {
     display: flex;

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Store listing for Flathub, GNOME Software and KDE Discover. -->
+<component type="desktop-application">
+  <id>network.corestart.reach</id>
+  <name>Corestart Reach</name>
+  <summary>Manage and open your RDP and SSH connections</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+
+  <developer id="network.corestart">
+    <name>Corestart Networks</name>
+  </developer>
+
+  <description>
+    <p>
+      Corestart Reach keeps your remote desktop (RDP) and SSH connections, and the logins
+      for them, in one encrypted vault, and opens any of them with a double-click. It's a
+      simple, modern connection manager in the spirit of mRemoteNG and Royal TS.
+    </p>
+    <ul>
+      <li>Everything is encrypted with your master password (Argon2id and XChaCha20-Poly1305)</li>
+      <li>RDP opens logged in, with clipboard and sound; FreeRDP is included</li>
+      <li>SSH opens in its own terminal, with passwords, key files, ssh-agent or 2FA prompts</li>
+      <li>Saved credentials shared by many connections, so a password changes in one place</li>
+      <li>Quick connect to any host without saving it</li>
+      <li>Folders with drag and drop, search and keyboard shortcuts</li>
+      <li>Locks itself when you're away</li>
+    </ul>
+    <p>Free and open source, with no paid version.</p>
+  </description>
+
+  <launchable type="desktop-id">network.corestart.reach.desktop</launchable>
+  <provides>
+    <binary>corestart-reach</binary>
+  </provides>
+
+  <url type="homepage">https://www.corestart.network</url>
+  <url type="vcs-browser">https://github.com/ThePoolboy/corestart-reach</url>
+  <url type="bugtracker">https://github.com/ThePoolboy/corestart-reach/issues</url>
+
+  <categories>
+    <category>Network</category>
+    <category>RemoteAccess</category>
+  </categories>
+  <keywords>
+    <keyword>RDP</keyword>
+    <keyword>SSH</keyword>
+    <keyword>remote desktop</keyword>
+    <keyword>terminal</keyword>
+    <keyword>connection manager</keyword>
+  </keywords>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#9fd3f9</color>
+    <color type="primary" scheme_preference="dark">#1f3b52</color>
+  </branding>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2026-09-28">
+      <description>
+        <p>First test release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

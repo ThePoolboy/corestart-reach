@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Corestart Reach
+Comment=RDP and SSH connection manager
+Exec=corestart-reach
+Icon=network.corestart.reach
+StartupWMClass=corestart-reach
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=rdp;ssh;remote;desktop;terminal;mremoteng;royal;
