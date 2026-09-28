@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2e2e2e"/>
+      <stop offset="1" stop-color="#1a1a1a"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <!-- signal arcs, as in the Corestart mark -->
+  <g fill="none" stroke="#23a0f3" stroke-width="44" stroke-linecap="round">
+    <path d="M404 206a150 150 0 0 0 0 200M620 206a150 150 0 0 1 0 200"/>
+    <path d="M336 150a240 240 0 0 0 0 312M688 150a240 240 0 0 1 0 312"/>
+  </g>
+  <circle cx="512" cy="306" r="54" fill="#23a0f3"/>
+  <!-- screen with a prompt -->
+  <rect x="232" y="500" width="560" height="330" rx="40" fill="#101010" stroke="#42a5e9" stroke-width="28"/>
+  <path d="M320 600l84 64-84 64" fill="none" stroke="#42a5e9" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M452 736h140" stroke="#ececec" stroke-width="36" stroke-linecap="round"/>
+</svg>

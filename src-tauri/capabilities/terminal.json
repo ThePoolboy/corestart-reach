@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "terminal",
+  "description": "SSH windows may read and write clipboard text for copy/paste.",
+  "windows": ["ssh-*"],
+  "permissions": ["clipboard-manager:allow-read-text", "clipboard-manager:allow-write-text"]
+}

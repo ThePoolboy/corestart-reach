@@ -1,0 +1,307 @@
+/* Corestart Reach. Palette follows the Corestart brand (charcoal + signal blue).
+   Dark by default; light when the system asks for it. */
+:root {
+  --bg: #1b1b1c;
+  --bg-side: #222224;
+  --bg-raised: #2a2a2d;
+  --bg-input: #161617;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-selected: rgba(35, 160, 243, 0.16);
+  --line: #353539;
+  --line-strong: #46464b;
+  --text: #ececec;
+  --text-dim: #a2a6ad;
+  --text-faint: #72767d;
+  --accent: #23a0f3;
+  --accent-hover: #42a5e9;
+  --accent-text: #ffffff;
+  --danger: #ef5350;
+  --danger-soft: rgba(239, 83, 80, 0.14);
+  --ok: #4caf7d;
+  --rdp: #42a5e9;
+  --ssh: #4caf7d;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --font: system-ui, -apple-system, 'Segoe UI', 'Noto Sans', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Mono', 'Fira Code', 'DejaVu Sans Mono', Consolas, monospace;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --bg-side: #f4f5f7;
+    --bg-raised: #ffffff;
+    --bg-input: #ffffff;
+    --bg-hover: rgba(0, 0, 0, 0.045);
+    --bg-selected: rgba(35, 160, 243, 0.14);
+    --line: #e2e4e8;
+    --line-strong: #cfd2d8;
+    --text: #1d1f23;
+    --text-dim: #5b6068;
+    --text-faint: #8a8f97;
+    --accent: #1a8fdc;
+    --accent-hover: #1580c7;
+    --danger: #d93b37;
+    --danger-soft: rgba(217, 59, 55, 0.1);
+    --rdp: #1a8fdc;
+    --ssh: #2e9a63;
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+    color-scheme: light;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  height: 100%;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--text-faint);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+}
+.btn.icon {
+  width: 32px;
+  padding: 0;
+}
+.btn.large {
+  height: 38px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+/* ---- Form fields ------------------------------------------------------ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.field .hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+textarea.input {
+  height: auto;
+  min-height: 80px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+select.input {
+  padding-right: 6px;
+}
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(35, 160, 243, 0.2);
+}
+.input::placeholder {
+  color: var(--text-faint);
+}
+
+.row {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr 1fr;
+}
+.row.host {
+  grid-template-columns: 1fr 110px;
+}
+
+/* Segmented control, e.g. RDP | SSH */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+.segmented button {
+  height: 26px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.segmented button.on {
+  background: var(--bg-raised);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
+}
+
+/* Protocol badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge.rdp {
+  color: var(--rdp);
+  background: color-mix(in srgb, var(--rdp) 15%, transparent);
+}
+.badge.ssh {
+  color: var(--ssh);
+  background: color-mix(in srgb, var(--ssh) 15%, transparent);
+}
+
+/* ---- Modal ------------------------------------------------------------ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+.modal {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.modal p {
+  margin: 0;
+  color: var(--text-dim);
+}
+.modal .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
