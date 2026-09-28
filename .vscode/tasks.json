@@ -1,0 +1,33 @@
+{
+  // Terminal > Run Task... (or Ctrl+Shift+B for the default build)
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Reach: Run app (dev)",
+      "detail": "Start Corestart Reach with live reload. Close the app window or press Ctrl+C here to stop.",
+      "type": "shell",
+      "command": "npm run tauri dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "Reach: Build RPM",
+      "detail": "Build an installable package into src-tauri/target/release/bundle/rpm/",
+      "type": "shell",
+      "command": "npm run tauri build -- --bundles rpm",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "Reach: Run checks",
+      "detail": "Type-check the interface and run the Rust tests.",
+      "type": "shell",
+      "command": "npm run check && cd src-tauri && cargo test",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    }
+  ]
+}
