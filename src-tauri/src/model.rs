@@ -17,6 +17,32 @@ pub struct VaultData {
     pub connections: Vec<Connection>,
     #[serde(default)]
     pub credentials: Vec<Credential>,
+    #[serde(default)]
+    pub settings: Settings,
+}
+
+/// App settings. Kept inside the encrypted vault so nobody can, say, turn
+/// auto-lock off by editing a file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Settings {
+    /// Lock the vault after this many minutes without using Reach. 0 = never.
+    pub auto_lock_minutes: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self { auto_lock_minutes: 15 }
+    }
+}
+
+impl Settings {
+    pub fn validate(&self) -> Result<()> {
+        if self.auto_lock_minutes > 24 * 60 {
+            return Err(msg("Auto-lock can be at most 24 hours."));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,6 +195,7 @@ pub struct Tree {
     pub folders: Vec<Folder>,
     pub connections: Vec<ConnectionView>,
     pub credentials: Vec<CredentialView>,
+    pub settings: Settings,
 }
 
 impl From<&VaultData> for Tree {
@@ -177,6 +204,7 @@ impl From<&VaultData> for Tree {
             folders: d.folders.clone(),
             connections: d.connections.iter().map(Into::into).collect(),
             credentials: d.credentials.iter().map(Into::into).collect(),
+            settings: d.settings.clone(),
         }
     }
 }
@@ -528,6 +556,19 @@ pub struct Resolved {
     pub ssh_key_path: String,
     pub ssh_key_passphrase: Option<String>,
     pub rdp_screen: RdpScreen,
+}
+
+impl Resolved {
+    /// The domain to send on its own, if any. A username already written as
+    /// `CORP\user` or `user@corp.example.com` carries its domain, so a Domain
+    /// field saved alongside it is ignored rather than doubled up.
+    pub fn separate_domain(&self) -> Option<&str> {
+        if self.domain.is_empty() || self.username.contains(['\\', '@']) {
+            None
+        } else {
+            Some(&self.domain)
+        }
+    }
 }
 
 #[cfg(test)]

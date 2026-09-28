@@ -8,7 +8,7 @@ mod rdp;
 mod ssh;
 mod vault;
 
-use tauri::{Manager, PhysicalSize, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, PhysicalSize, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use commands::AppState;
 
@@ -33,6 +33,24 @@ pub fn fit_to_screen(window: &WebviewWindow) {
     }
 }
 
+/// Bring the main window forward, or reopen it if it was closed while SSH
+/// windows kept the app running.
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main") else {
+        return;
+    };
+    if let Ok(window) = WebviewWindowBuilder::from_config(app, config).and_then(|b| b.build()) {
+        fit_to_screen(&window);
+        let _ = window.set_focus();
+    }
+}
+
 fn main() {
     // WebKitGTK's DMA-BUF renderer crashes on NVIDIA + Wayland ("Error 71 (Protocol
     // error) dispatching to Wayland display"). Turn it off unless the user chose.
@@ -43,6 +61,9 @@ fn main() {
     }
 
     tauri::Builder::default()
+        // One copy of Reach at a time: two copies saving the same vault would
+        // overwrite each other's changes. Starting it again brings this one forward.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -51,6 +72,18 @@ fn main() {
             if let Some(main) = app.get_webview_window("main") {
                 fit_to_screen(&main);
             }
+
+            // Auto-lock: check every few seconds; the main window shows the lock
+            // screen when told the vault was locked.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    if let Some(minutes) = handle.state::<AppState>().lock_if_idle() {
+                        let _ = handle.emit("vault-locked", minutes);
+                    }
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -66,6 +99,9 @@ fn main() {
             commands::vault_create,
             commands::vault_unlock,
             commands::vault_lock,
+            commands::vault_touch,
+            commands::vault_change_password,
+            commands::save_settings,
             commands::get_tree,
             commands::save_connection,
             commands::duplicate_connection,
@@ -77,7 +113,6 @@ fn main() {
             commands::delete_credential,
             commands::connect,
             commands::quick_connect,
-            commands::ssh_title,
             commands::ssh_start,
             commands::ssh_write,
             commands::ssh_resize,

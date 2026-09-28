@@ -7,81 +7,121 @@ mRemoteNG and Royal TS. Free and open source under GPL-3.0.
   without your master password.
 - **RDP** opens in your system's own client: `mstsc` on Windows, FreeRDP on Linux.
   Saved passwords are passed along, so you're logged straight in.
-- **SSH** opens in its own terminal window, with password, private-key and
-  keyboard-interactive (2FA) login. Host keys are checked against `~/.ssh/known_hosts`,
-  the same file OpenSSH uses.
+- **SSH** opens in its own terminal window. Logs in with a saved password, a key file,
+  your ssh-agent or your usual `~/.ssh` keys, or keyboard-interactive / 2FA prompts.
+  Host keys are checked against `~/.ssh/known_hosts`, the same file OpenSSH uses.
+- **Quick connect** to any host without saving it (Ctrl+K).
 - **Saved credentials**: store a login once (e.g. a domain admin) and use it on many
   connections. Change the password in one place.
-- Folders, search, keyboard shortcuts, light and dark themes.
+- Folders with drag and drop, right-click menus, search, keyboard shortcuts, light and dark
+  themes.
 
 ## Status
 
-Early development (v0.1). RDP and SSH each open in a separate window. Tabs, embedded RDP,
-import from mRemoteNG, auto-update and installers are planned.
+Early development (v0.1), ready for testing. RDP and SSH each open in their own window.
+Planned: auto-update, import from mRemoteNG, tabs and embedded RDP.
+
+The vault **locks itself after 15 minutes without use** (change it or turn it off in
+Settings). Open RDP and SSH sessions keep running when it locks. The master password can be
+changed in Settings; the vault and its backup are re-encrypted with the new one.
+
+## Install
+
+Test builds are made automatically for every change: open the repository's
+[**Actions**](https://github.com/ThePoolboy/corestart-reach/actions) tab, pick the latest
+green **Build** run, and download from **Artifacts** at the bottom (you need to be signed in
+to GitHub). Unzip it to get the package for your system.
+
+| System | Package | Install |
+| --- | --- | --- |
+| Windows 10 / 11 | `Corestart-Reach_0.1.0_x64-setup.exe` | Run it. No admin rights needed. |
+| Fedora 40+ | `Corestart-Reach-0.1.0-1.x86_64.rpm` | `sudo dnf install ./Corestart-Reach-0.1.0-1.x86_64.rpm` |
+| Ubuntu 22.04+ / Debian 12+ | `Corestart-Reach_0.1.0_amd64.deb` | `sudo apt install ./Corestart-Reach_0.1.0_amd64.deb` |
+| Other Linux | `Corestart-Reach_0.1.0_amd64.AppImage` | `chmod +x` it and run it. Needs FreeRDP 3 installed. |
+
+- **Windows** shows "Windows protected your PC" the first time, because test builds aren't
+  code-signed yet. Click **More info → Run anyway**.
+- **Linux** packages pull in FreeRDP 3 automatically (dnf and apt install recommended
+  packages by default). If RDP says FreeRDP is missing:
+  `sudo dnf install freerdp` or `sudo apt install freerdp3-x11`.
 
 ## How your data is stored
 
 | | |
 | --- | --- |
-| Vault file (Linux) | `~/.local/share/network.corestart.reach/vault.json` |
+| Vault file (Linux) | `~/.local/share/network.corestart.reach/vault.json` (owner-only, 0600) |
 | Vault file (Windows) | `%APPDATA%\network.corestart.reach\vault.json` |
 | Key derivation | Argon2id, 64 MiB memory, 3 passes, random 16-byte salt |
 | Encryption | XChaCha20-Poly1305, fresh random nonce on every save |
 | Backup | The previous version is kept as `vault.json.bak` on every save |
+| Settings | Inside the encrypted vault |
+| SSH host keys | `~/.ssh/known_hosts`, shared with OpenSSH |
 
 Passwords never reach the interface: it only knows whether one is saved. On Linux the
 RDP password goes to FreeRDP through a pipe (`/args-from:stdin`), so it never appears in
 the process list. On Windows it's stored as a session-only `TERMSRV/<host>` credential
-for mstsc, and Windows clears it when you sign out.
+for mstsc (what `cmdkey` does), and Windows clears it when you sign out.
 
 **There is no password recovery.** If you forget the master password, the vault can't be
 opened.
 
-## Requirements
+Only one copy of Reach runs at a time; starting it again brings the open one forward.
 
-- **Linux:** FreeRDP 3 for RDP (`sudo dnf install freerdp` or `sudo apt install freerdp3-x11`).
-- **Windows 10/11:** nothing extra. Uses the built-in Remote Desktop client and WebView2.
+## Keyboard shortcuts
+
+| Keys | Action |
+| --- | --- |
+| Ctrl+K | Quick connect |
+| Ctrl+N | New connection |
+| Ctrl+F | Search (Enter connects to the first match, or quick connects if none) |
+| Ctrl+L | Lock the vault |
+| Ctrl+, | Settings |
+| Ctrl+S | Save the open connection |
+| ↑ ↓ ← → / Enter | Move through the tree / connect |
+| Shift+F10 or Menu key | Right-click menu for the selected item |
+| Ctrl+Shift+C / Ctrl+Shift+V | Copy / paste in an SSH window |
 
 ## Building from source
 
-You need Rust (via [rustup](https://rustup.rs)) and Node.js 20+.
-
-Fedora packages:
+You need Rust (via [rustup](https://rustup.rs)), Node.js 20+ and WebKitGTK on Linux.
 
 ```bash
-sudo dnf install nodejs webkit2gtk4.1-devel openssl-devel librsvg2-devel \
-  libappindicator-gtk3-devel libxdo-devel
+# Fedora
+sudo dnf group install c-development && sudo dnf install nodejs webkit2gtk4.1-devel
+# Ubuntu / Debian
+sudo apt install build-essential nodejs npm libwebkit2gtk-4.1-dev
 ```
 
-Then:
+Windows needs the "Desktop development with C++" workload from Visual Studio Build Tools.
 
 ```bash
 npm install
-npm run tauri dev      # run with live reload
-npm run tauri build    # build installers into src-tauri/target/release/bundle/
+npm run tauri dev                          # run with live reload
+npm run tauri build -- --bundles rpm       # or deb, appimage, nsis, msi
+npm run check                              # type-check the interface
+cd src-tauri && cargo clippy && cargo test # lint and test the Rust core
 ```
 
-Checks:
-
-```bash
-npm run check                          # TypeScript / Svelte
-cd src-tauri && cargo test && cargo clippy
-```
+Every push to `main` runs the same checks and builds the Linux and Windows packages on
+GitHub ([`.github/workflows/build.yml`](.github/workflows/build.yml)). Linux packages are
+built on Ubuntu 22.04 so they run on it and on anything newer.
 
 ## Project layout
 
 ```
-src/                     interface (Svelte 5 + TypeScript)
-  main.ts                picks the main window or an SSH window from the URL
-  lib/api.ts             typed wrappers for every Rust command
-  views/Workspace.svelte sidebar tree, search and panes
-  views/SshSession.svelte terminal window (xterm.js)
-src-tauri/               Rust core (Tauri 2)
-  src/vault.rs           encrypted vault file
-  src/model.rs           connections, folders, credentials
-  src/rdp.rs             launch FreeRDP / mstsc
-  src/ssh.rs             SSH sessions (russh)
-  src/commands.rs        commands the interface calls
+src/                        interface (Svelte 5 + TypeScript)
+  main.ts                   picks the main window or an SSH window from the URL
+  lib/api.ts                typed wrappers for every Rust command
+  lib/desktop.ts            turns off web-page behaviour (browser menu, F5 reload)
+  views/Workspace.svelte    sidebar tree, drag and drop, menus, panes
+  views/SshSession.svelte   terminal window (xterm.js)
+src-tauri/                  Rust core (Tauri 2)
+  src/vault.rs              encrypted vault file
+  src/model.rs              connections, folders, credentials
+  src/rdp.rs                launch FreeRDP / mstsc
+  src/ssh.rs                SSH sessions (russh)
+  src/commands.rs           commands the interface calls
+  linux/                    desktop entry for the Linux packages
 ```
 
 ## Known issues
@@ -90,6 +130,10 @@ src-tauri/               Rust core (Tauri 2)
   `Error 71 (Protocol error) dispatching to Wayland display`. Reach turns it off at
   start-up (`WEBKIT_DISABLE_DMABUF_RENDERER=1`). Set the variable to `0` yourself to
   override.
+- **Windows with Credential Guard** (on by default on some Windows 11 Enterprise and
+  Education machines) can refuse saved RDP credentials. mstsc then asks for the password
+  itself.
+- **FreeRDP 2 isn't supported.** Reach needs FreeRDP 3 to pass the password privately.
 
 ## License
 
@@ -100,3 +144,11 @@ same license, with source code.
 "Corestart", "Corestart Reach" and the Corestart logo are names and marks of Corestart
 Networks. Forks are welcome under the GPL, but please give them a different name and logo
 so nobody confuses them with the official project.
+
+## Contributors
+
+- **spacelord**: project owner
+- **Claude** (Anthropic's AI assistant): co-author of code and documentation
+
+Claude's work shows in the history either as the commit author or as a
+`Co-Authored-By: Claude` line on the commit.

@@ -1,0 +1,109 @@
+# Checks the code and builds installers for Linux and Windows on every push.
+# The packages are attached to each run under "Artifacts" (kept 30 days).
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built on the oldest supported Ubuntu so the packages also run on
+          # every newer Ubuntu and Fedora (programs need a glibc at least as new
+          # as the one they were built with).
+          - name: Linux
+            os: ubuntu-22.04
+            artifact: corestart-reach-linux
+          - name: Windows
+            os: windows-latest
+            artifact: corestart-reach-windows
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux build libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # WebKitGTK for the app; the rest is for AppImage bundling.
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libwebkit2gtk-4.1-dev librsvg2-dev patchelf file xdg-utils
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Check the interface
+        run: npm run check
+
+      - name: Lint and test the Rust core
+        working-directory: src-tauri
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Build Linux packages (deb, rpm)
+        if: runner.os == 'Linux'
+        run: npm run tauri build -- --bundles deb,rpm
+
+      # AppImage bundling downloads extra tools and is the most fragile step;
+      # don't let it block the deb and rpm.
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: npm run tauri build -- --bundles appimage
+
+      - name: Build Windows installers (setup.exe, msi)
+        if: runner.os == 'Windows'
+        run: npm run tauri build -- --bundles nsis,msi
+
+      # "Corestart Reach_0.1.0_amd64.deb" -> "Corestart-Reach_0.1.0_amd64.deb":
+      # no quoting needed when installing from a terminal.
+      - name: Remove spaces from package names
+        shell: bash
+        run: |
+          shopt -s nullglob
+          cd src-tauri/target/release/bundle
+          for f in deb/*.deb rpm/*.rpm appimage/*.AppImage nsis/*.exe msi/*.msi; do
+            [[ "$f" == *" "* ]] && mv "$f" "${f// /-}"
+          done
+          ls -l deb rpm appimage nsis msi 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/msi/*.msi

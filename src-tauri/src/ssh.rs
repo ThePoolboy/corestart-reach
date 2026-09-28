@@ -13,11 +13,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use russh::client::{self, AuthResult, KeyboardInteractiveAuthResponse};
-use russh::keys::{self, HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate};
-use russh::{ChannelMsg, ChannelWriteHalf, MethodKind};
+use russh::keys::agent::AgentIdentity;
+use russh::keys::agent::client::{AgentClient, AgentStream};
+use russh::keys::{self, Algorithm, HashAlg, PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
+use russh::{ChannelMsg, ChannelWriteHalf, MethodKind, Pty};
 use serde::{Deserialize, Serialize};
 use tauri::async_runtime::JoinHandle;
 use tauri::ipc::{Channel, InvokeResponseBody};
+use tokio::net::TcpStream;
 use tokio::sync::oneshot;
 
 use crate::error::{Result, msg};
@@ -69,10 +72,6 @@ impl Sessions {
         let id = uuid::Uuid::new_v4().simple().to_string();
         self.lock().insert(id.clone(), Entry { target, writer: None, answer: None, task: None });
         id
-    }
-
-    pub fn title(&self, id: &str) -> Option<String> {
-        self.lock().get(id).map(|e| e.target.name.clone())
     }
 
     /// Connect (or reconnect) the session, streaming into the window's channels.
@@ -287,14 +286,20 @@ async fn run(
         port: target.port,
         rejected: rejected.clone(),
     };
-    let connect = client::connect(config, (target.host.as_str(), target.port), handler);
-    let mut handle = match tokio::time::timeout(Duration::from_secs(20), connect).await {
-        Err(_) => return Err(format!("Timed out connecting to {}.", target.host)),
-        Ok(Err(e)) => {
+    // Only the TCP connection gets a timeout: the SSH handshake below can wait
+    // on you reading and answering the host-key question.
+    let tcp = TcpStream::connect((target.host.as_str(), target.port));
+    let tcp = tokio::time::timeout(Duration::from_secs(15), tcp)
+        .await
+        .map_err(|_| format!("Timed out connecting to {}:{}.", target.host, target.port))?
+        .map_err(|e| format!("Couldn't connect to {}:{}: {e}", target.host, target.port))?;
+    let _ = tcp.set_nodelay(true);
+    let mut handle = match client::connect_stream(config, tcp, handler).await {
+        Ok(h) => h,
+        Err(e) => {
             let reason = rejected.lock().unwrap_or_else(|e| e.into_inner()).take();
             return Err(reason.unwrap_or_else(|| err(e)));
         }
-        Ok(Ok(h)) => h,
     };
 
     let user = if target.username.is_empty() {
@@ -305,8 +310,10 @@ async fn run(
     authenticate(&mut handle, ui, &target, &user).await?;
 
     let channel = handle.channel_open_session().await.map_err(err)?;
+    // Backspace sends DEL (127) and input is UTF-8, matching the xterm.js terminal.
+    let modes = [(Pty::VERASE, 127), (Pty::IUTF8, 1)];
     channel
-        .request_pty(false, "xterm-256color", cols, rows, 0, 0, &[])
+        .request_pty(false, "xterm-256color", cols, rows, 0, 0, &modes)
         .await
         .map_err(err)?;
     channel.request_shell(false).await.map_err(err)?;
@@ -342,40 +349,42 @@ async fn run(
     })
 }
 
-/// Try the private key, then the password, then keyboard-interactive (which also
-/// covers 2FA prompts). Asks the user for anything that isn't saved.
+/// At most this many keys are offered, so a full ssh-agent can't use up the
+/// server's MaxAuthTries (OpenSSH default 6) before the password gets a turn.
+const MAX_KEYS: usize = 4;
+
+/// Key files OpenSSH tries when none is configured, in its order.
+const DEFAULT_KEYS: &[&str] = &["id_ed25519", "id_ecdsa", "id_rsa"];
+
+/// Log in the way OpenSSH does: ask the server which methods it accepts, then
+/// try keys (the connection's key file, or else ssh-agent and the default key
+/// files), then the password, then keyboard-interactive (which also covers 2FA
+/// prompts). Anything not saved is asked for in the terminal.
 async fn authenticate(
     handle: &mut client::Handle<Client>,
     ui: &Ui,
     target: &Resolved,
     user: &str,
 ) -> std::result::Result<(), String> {
-    let mut methods: Vec<MethodKind> =
-        vec![MethodKind::PublicKey, MethodKind::Password, MethodKind::KeyboardInteractive];
+    let mut methods: Vec<MethodKind> = Vec::new();
+    // "none" auth fails on any real server but tells us what it accepts.
+    let probe = handle.authenticate_none(user).await.map_err(err)?;
+    if succeeded(&probe, &mut methods) {
+        return Ok(());
+    }
+    if methods.is_empty() {
+        methods = vec![MethodKind::PublicKey, MethodKind::Password, MethodKind::KeyboardInteractive];
+    }
 
-    if !target.ssh_key_path.is_empty() {
-        let path = expand_home(&target.ssh_key_path);
-        let key = match keys::load_secret_key(&path, target.ssh_key_passphrase.as_deref()) {
-            Ok(k) => k,
-            Err(keys::Error::KeyIsEncrypted) => {
-                let pass = ui
-                    .prompt(format!("Enter passphrase for key '{}': ", path.display()), true)
-                    .await
-                    .ok_or("Cancelled.")?;
-                keys::load_secret_key(&path, Some(&pass))
-                    .map_err(|e| format!("Couldn't unlock {}: {e}", path.display()))?
-            }
-            Err(e) => return Err(format!("Couldn't read key {}: {e}", path.display())),
+    if methods.contains(&MethodKind::PublicKey) {
+        let accepted = if target.ssh_key_path.is_empty() {
+            try_usual_keys(handle, ui, user, &mut methods).await?
+        } else {
+            try_key_file(handle, ui, user, target, &mut methods).await?
         };
-        let hash = handle.best_supported_rsa_hash().await.map_err(err)?.flatten();
-        let result = handle
-            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key), hash))
-            .await
-            .map_err(err)?;
-        if succeeded(&result, &mut methods) {
+        if accepted {
             return Ok(());
         }
-        ui.status("Server refused the key.");
     }
 
     let mut saved = target.password.clone();
@@ -402,7 +411,140 @@ async fn authenticate(
         }
         ui.status("Permission denied, please try again.");
     }
+    if methods == [MethodKind::PublicKey] {
+        return Err(format!(
+            "{user}@{}: Permission denied (publickey).\r\n\
+             This server only accepts SSH keys. Set a private key file on the connection, \
+             or load your key into ssh-agent.",
+            target.host
+        ));
+    }
     Err(format!("{user}@{}: Permission denied.", target.host))
+}
+
+/// The key file set on the connection. Asks for its passphrase if it isn't saved.
+async fn try_key_file(
+    handle: &mut client::Handle<Client>,
+    ui: &Ui,
+    user: &str,
+    target: &Resolved,
+    methods: &mut Vec<MethodKind>,
+) -> std::result::Result<bool, String> {
+    let path = expand_home(&target.ssh_key_path);
+    let key = match keys::load_secret_key(&path, target.ssh_key_passphrase.as_deref()) {
+        Ok(k) => k,
+        Err(keys::Error::KeyIsEncrypted) => {
+            let pass = ui
+                .prompt(format!("Enter passphrase for key '{}': ", path.display()), true)
+                .await
+                .ok_or("Cancelled.")?;
+            keys::load_secret_key(&path, Some(&pass))
+                .map_err(|e| format!("Couldn't unlock {}: {e}", path.display()))?
+        }
+        Err(e) => return Err(format!("Couldn't read key {}: {e}", path.display())),
+    };
+    if offer_key(handle, user, key, methods).await? {
+        return Ok(true);
+    }
+    ui.status("Server refused the key.");
+    Ok(false)
+}
+
+/// No key file set: like OpenSSH, try ssh-agent, then ~/.ssh/id_ed25519,
+/// id_ecdsa and id_rsa. An encrypted key file asks for its passphrase, and an
+/// empty answer skips it.
+async fn try_usual_keys(
+    handle: &mut client::Handle<Client>,
+    ui: &Ui,
+    user: &str,
+    methods: &mut Vec<MethodKind>,
+) -> std::result::Result<bool, String> {
+    let rsa_hash = handle.best_supported_rsa_hash().await.map_err(err)?.flatten();
+    let mut offered: Vec<PublicKey> = Vec::new();
+
+    if let Some(mut agent) = connect_agent().await {
+        let identities = agent.request_identities().await.unwrap_or_default();
+        for identity in identities {
+            if offered.len() >= MAX_KEYS || !methods.contains(&MethodKind::PublicKey) {
+                return Ok(false);
+            }
+            // Certificates need the matching private key's cert login; skip them.
+            let AgentIdentity::PublicKey { key, .. } = identity else { continue };
+            offered.push(key.clone());
+            let hash = if matches!(key.algorithm(), Algorithm::Rsa { .. }) { rsa_hash } else { None };
+            let result = handle
+                .authenticate_publickey_with(user, key, hash, &mut agent)
+                .await
+                .map_err(|e| format!("ssh-agent: {e}"))?;
+            if succeeded(&result, methods) {
+                return Ok(true);
+            }
+        }
+    }
+
+    let Some(ssh_dir) = home_dir().map(|h| h.join(".ssh")) else { return Ok(false) };
+    for name in DEFAULT_KEYS {
+        if offered.len() >= MAX_KEYS || !methods.contains(&MethodKind::PublicKey) {
+            break;
+        }
+        let path = ssh_dir.join(name);
+        if !path.is_file() {
+            continue;
+        }
+        // Skip keys the agent already offered, without asking for a passphrase.
+        if let Ok(public) = PublicKey::read_openssh_file(path.with_extension("pub")) {
+            if offered.iter().any(|k| k.key_data() == public.key_data()) {
+                continue;
+            }
+        }
+        let key = match keys::load_secret_key(&path, None) {
+            Ok(k) => k,
+            Err(keys::Error::KeyIsEncrypted) => {
+                let prompt = format!("Enter passphrase for key '{}' (Enter to skip): ", path.display());
+                match ui.prompt(prompt, true).await {
+                    None => return Err("Cancelled.".into()),
+                    Some(p) if p.is_empty() => continue,
+                    Some(p) => match keys::load_secret_key(&path, Some(&p)) {
+                        Ok(k) => k,
+                        Err(_) => {
+                            ui.status("Wrong passphrase; skipping that key.");
+                            continue;
+                        }
+                    },
+                }
+            }
+            Err(_) => continue, // unreadable or unsupported: OpenSSH skips it too
+        };
+        offered.push(key.public_key().clone());
+        if offer_key(handle, user, key, methods).await? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+async fn offer_key(
+    handle: &mut client::Handle<Client>,
+    user: &str,
+    key: PrivateKey,
+    methods: &mut Vec<MethodKind>,
+) -> std::result::Result<bool, String> {
+    let hash = handle.best_supported_rsa_hash().await.map_err(err)?.flatten();
+    let result = handle
+        .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key), hash))
+        .await
+        .map_err(err)?;
+    Ok(succeeded(&result, methods))
+}
+
+/// The user's running SSH agent: `SSH_AUTH_SOCK` on Linux, the Windows
+/// OpenSSH agent service's pipe on Windows. `None` if there isn't one.
+async fn connect_agent() -> Option<AgentClient<Box<dyn AgentStream + Send + Unpin>>> {
+    #[cfg(unix)]
+    let agent = AgentClient::connect_env().await.ok()?.dynamic();
+    #[cfg(windows)]
+    let agent = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await.ok()?.dynamic();
+    Some(agent)
 }
 
 /// True on success; on failure, remember which methods the server still offers.

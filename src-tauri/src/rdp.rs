@@ -3,7 +3,8 @@
 //! - Linux: FreeRDP. All arguments, including the password, are written to its stdin
 //!   (`/args-from:stdin`) so they never show up in the process list.
 //! - Windows: mstsc. The password is stored as a session-only `TERMSRV/<host>`
-//!   credential (what `cmdkey` does) and mstsc gets a temporary .rdp file.
+//!   credential (what `cmdkey` does) and mstsc is started with `/v:host`. No .rdp
+//!   file: Windows 11 warns about every unsigned .rdp file that gets opened.
 
 use serde::Serialize;
 
@@ -19,11 +20,11 @@ pub struct RdpExit {
     pub message: String,
 }
 
-/// Can we launch without asking for anything? On Linux FreeRDP has nowhere to
-/// prompt, so a missing username or password has to be asked for up front.
-/// mstsc on Windows shows its own login prompt.
+/// Can we launch without asking for anything? Both clients get the login up
+/// front: FreeRDP has nowhere to prompt, and mstsc started with `/v` reads it
+/// from the stored credential.
 pub fn needs_credentials(c: &Resolved) -> bool {
-    cfg!(not(windows)) && (c.username.is_empty() || c.password.is_none())
+    c.username.is_empty() || c.password.is_none()
 }
 
 /// `host:port`, with IPv6 addresses bracketed.
@@ -43,7 +44,7 @@ pub use windows_impl::launch;
 #[cfg(not(windows))]
 mod linux {
     use std::io::{BufRead, BufReader, Write};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
 
     use tauri::{AppHandle, Emitter};
@@ -62,13 +63,44 @@ mod linux {
         "wlfreerdp",
     ];
 
-    fn find_client() -> Option<PathBuf> {
-        let path = std::env::var_os("PATH")?;
-        CLIENTS.iter().find_map(|name| {
-            std::env::split_paths(&path)
-                .map(|dir| dir.join(name))
-                .find(|p| p.is_file())
+    const INSTALL_HINT: &str =
+        "Fedora: sudo dnf install freerdp\nUbuntu / Debian: sudo apt install freerdp3-x11";
+
+    /// The first FreeRDP 3 client on PATH. FreeRDP 2 can't be used: it has no
+    /// `/args-from`, so the password would have to go on the command line.
+    fn find_client() -> Result<PathBuf> {
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let mut too_old = None;
+        for name in CLIENTS {
+            let Some(exe) = std::env::split_paths(&path).map(|dir| dir.join(name)).find(|p| p.is_file())
+            else {
+                continue;
+            };
+            match major_version(&exe) {
+                Some(major) if major < 3 => {
+                    too_old.get_or_insert((exe, major));
+                }
+                // 3 or newer, or a version we couldn't read: use it.
+                _ => return Ok(exe),
+            }
+        }
+        Err(match too_old {
+            Some((exe, major)) => msg(format!(
+                "Corestart Reach needs FreeRDP 3, but {} is FreeRDP {major}.\n{INSTALL_HINT}",
+                exe.display()
+            )),
+            None => msg(format!("FreeRDP isn't installed.\n{INSTALL_HINT}")),
         })
+    }
+
+    /// Major version from "This is FreeRDP version 3.31.1 (n/a)".
+    fn major_version(exe: &Path) -> Option<u32> {
+        let out = Command::new(exe).arg("--version").stdin(Stdio::null()).output().ok()?;
+        parse_major(&String::from_utf8_lossy(&out.stdout))
+    }
+
+    fn parse_major(text: &str) -> Option<u32> {
+        text.split("version ").nth(1)?.split('.').next()?.trim().parse().ok()
     }
 
     fn arguments(c: &Resolved) -> Vec<String> {
@@ -78,13 +110,13 @@ mod linux {
             // Trust the certificate the first time, refuse if it later changes.
             "/cert:tofu".into(),
             "+clipboard".into(),
-            "/auto-reconnect".into(),
+            "+auto-reconnect".into(),
         ];
         if !c.username.is_empty() {
             args.push(format!("/u:{}", c.username));
         }
-        if !c.domain.is_empty() {
-            args.push(format!("/d:{}", c.domain));
+        if let Some(domain) = c.separate_domain() {
+            args.push(format!("/d:{domain}"));
         }
         if let Some(p) = &c.password {
             args.push(format!("/p:{p}"));
@@ -92,7 +124,8 @@ mod linux {
         match c.rdp_screen {
             RdpScreen::Fullscreen => args.push("/f".into()),
             RdpScreen::Window => {
-                args.push("/size:1600x900".into());
+                // 80% of the screen, whatever its size; then follows the window.
+                args.push("/size:80%".into());
                 args.push("+dynamic-resolution".into());
             }
         }
@@ -100,9 +133,7 @@ mod linux {
     }
 
     pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
-        let exe = find_client().ok_or_else(|| {
-            msg("FreeRDP isn't installed. On Fedora run: sudo dnf install freerdp")
-        })?;
+        let exe = find_client()?;
         let args = arguments(c);
         if args.iter().any(|a| a.contains('\n')) {
             return Err(msg("Connection settings can't contain line breaks."));
@@ -196,6 +227,19 @@ mod linux {
             assert!(args.contains(&"/v:[fe80::1]:3389".to_string()));
             assert!(args.contains(&"/p:p@ss word".to_string()));
             assert!(args.contains(&"/d:CORP".to_string()));
+
+            // A username that already names its domain wins over the Domain field.
+            let c = Resolved { username: "CORP\\admin".into(), domain: "OTHER".into(), ..c };
+            let args = arguments(&c);
+            assert!(args.contains(&"/u:CORP\\admin".to_string()));
+            assert!(!args.iter().any(|a| a.starts_with("/d:")));
+        }
+
+        #[test]
+        fn reads_freerdp_version() {
+            assert_eq!(parse_major("This is FreeRDP version 3.31.1 (n/a)\n"), Some(3));
+            assert_eq!(parse_major("This is FreeRDP version 2.11.7 (2.11.7)"), Some(2));
+            assert_eq!(parse_major("something else"), None);
         }
 
         #[test]
@@ -263,55 +307,64 @@ mod windows_impl {
             .map_err(|e| msg(format!("Couldn't save the RDP password for mstsc: {e}")))
     }
 
-    fn rdp_file(c: &Resolved, user: &str) -> String {
-        let screen = match c.rdp_screen {
-            RdpScreen::Fullscreen => 2,
-            RdpScreen::Window => 1,
-        };
-        let mut lines = vec![
-            format!("full address:s:{}", address(c)),
-            format!("screen mode id:i:{screen}"),
-            "dynamic resolution:i:1".into(),
-            "redirectclipboard:i:1".into(),
-            "autoreconnection enabled:i:1".into(),
-            "authentication level:i:2".into(),
-        ];
-        if !user.is_empty() {
-            lines.push(format!("username:s:{user}"));
+    /// `/v:host:port`, then full screen, or a window at 80% of the screen
+    /// (mstsc resizes the remote desktop to match when you resize the window).
+    fn arguments(c: &Resolved, screen: Option<(u32, u32)>) -> Vec<String> {
+        let mut args = vec![format!("/v:{}", address(c))];
+        match (c.rdp_screen, screen) {
+            (RdpScreen::Fullscreen, _) => args.push("/f".into()),
+            (RdpScreen::Window, Some((w, h))) => {
+                args.push(format!("/w:{}", w * 8 / 10));
+                args.push(format!("/h:{}", h * 8 / 10));
+            }
+            (RdpScreen::Window, None) => {}
         }
-        if c.password.is_some() {
-            lines.push("prompt for credentials:i:0".into());
-        }
-        lines.join("\r\n") + "\r\n"
+        args
     }
 
-    pub fn launch(_app: &AppHandle, c: &Resolved) -> Result<()> {
-        let user = match (c.domain.is_empty(), c.username.is_empty()) {
-            (false, false) => format!("{}\\{}", c.domain, c.username),
+    pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
+        let user = match c.separate_domain() {
+            Some(domain) if !c.username.is_empty() => format!("{domain}\\{}", c.username),
             _ => c.username.clone(),
         };
-        if let Some(password) = &c.password {
-            store_credential(&c.host, &user, password)?;
-        }
+        // `needs_credentials` makes the UI ask for these before we get here.
+        let password = c.password.as_deref().ok_or_else(|| msg("There's no password to log in with."))?;
+        store_credential(&c.host, &user, password)?;
 
-        // mstsc expects UTF-16LE with a BOM, like the files it saves itself.
-        let text = rdp_file(c, &user);
-        let mut bytes = vec![0xFF, 0xFE];
-        bytes.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
-        let path = std::env::temp_dir().join(format!("corestart-reach-{}.rdp", uuid::Uuid::new_v4()));
-        std::fs::write(&path, bytes)?;
-
+        let screen = app.primary_monitor().ok().flatten().map(|m| (m.size().width, m.size().height));
         Command::new("mstsc.exe")
-            .arg(&path)
+            .args(arguments(c, screen))
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| msg(format!("Couldn't start mstsc: {e}")))?;
-
-        // mstsc reads the file on start-up; tidy it away afterwards.
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(20));
-            let _ = std::fs::remove_file(path);
-        });
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::model::Protocol;
+
+        #[test]
+        fn mstsc_arguments() {
+            let mut c = Resolved {
+                name: "Web 1".into(),
+                protocol: Protocol::Rdp,
+                host: "web1.corp.example.com".into(),
+                port: 3390,
+                username: "admin".into(),
+                domain: "CORP".into(),
+                password: Some("pw".into()),
+                ssh_key_path: String::new(),
+                ssh_key_passphrase: None,
+                rdp_screen: RdpScreen::Window,
+            };
+            assert_eq!(
+                arguments(&c, Some((2560, 1440))),
+                ["/v:web1.corp.example.com:3390", "/w:2048", "/h:1152"]
+            );
+            c.rdp_screen = RdpScreen::Fullscreen;
+            assert_eq!(arguments(&c, None), ["/v:web1.corp.example.com:3390", "/f"]);
+        }
     }
 }

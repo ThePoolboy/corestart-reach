@@ -1,5 +1,6 @@
 import { mount } from 'svelte';
 import './app.css';
+import { blockBrowserMenu, blockBrowserShortcuts } from './lib/desktop';
 import App from './views/App.svelte';
 import SshSession from './views/SshSession.svelte';
 
@@ -9,8 +10,10 @@ const params = new URLSearchParams(location.search);
 const target = document.getElementById('app')!;
 const session = params.get('session');
 
+blockBrowserMenu();
 if (params.get('view') === 'ssh' && session) {
   mount(SshSession, { target, props: { session } });
 } else {
+  blockBrowserShortcuts();
   mount(App, { target });
 }

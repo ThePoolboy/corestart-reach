@@ -25,6 +25,7 @@
   import FolderPane from './FolderPane.svelte';
   import NameDialog from './NameDialog.svelte';
   import QuickConnect from './QuickConnect.svelte';
+  import SettingsPane from './SettingsPane.svelte';
 
   let { tree, onchange, onlock }: { tree: Tree; onchange: (t: Tree) => void; onlock: () => void } =
     $props();
@@ -34,7 +35,8 @@
     | { kind: 'connection'; id: string }
     | { kind: 'new'; protocol: Protocol; folderId: string | null }
     | { kind: 'folder'; id: string }
-    | { kind: 'credentials'; id: string | null };
+    | { kind: 'credentials'; id: string | null }
+    | { kind: 'settings' };
 
   type Dialog =
     | { kind: 'confirm'; title: string; message: string; label: string; run: () => void | Promise<void> }
@@ -66,7 +68,8 @@
 
   function loadOpen(): string[] {
     try {
-      return JSON.parse(localStorage.getItem(OPEN_KEY) ?? '[]');
+      const saved: unknown = JSON.parse(localStorage.getItem(OPEN_KEY) ?? '[]');
+      return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
     } catch {
       return [];
     }
@@ -483,6 +486,9 @@
     } else if (mod && e.key.toLowerCase() === 'l') {
       e.preventDefault();
       onlock();
+    } else if (mod && e.key === ',') {
+      e.preventDefault();
+      go({ kind: 'settings' });
     } else if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       openQuickConnect();
@@ -620,6 +626,9 @@
       <button class="nav" class:on={view.kind === 'credentials'} onclick={() => go({ kind: 'credentials', id: null })}>
         <Icon name="key" /> Credentials <span class="count">{tree.credentials.length}</span>
       </button>
+      <button class="nav" class:on={view.kind === 'settings'} onclick={() => go({ kind: 'settings' })}>
+        <Icon name="settings" /> Settings
+      </button>
     </div>
   </aside>
 
@@ -674,6 +683,8 @@
           onsaved={(s) => applySaved(s, { kind: 'credentials', id: s.id })}
           ondelete={confirmDeleteCredential}
         />
+      {:else if view.kind === 'settings'}
+        <SettingsPane {tree} {onchange} />
       {:else}
         <div class="home">
           <img src="/icon.svg" alt="" width="84" height="84" />

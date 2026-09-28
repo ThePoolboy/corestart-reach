@@ -95,22 +95,37 @@ pub fn create(path: &Path, password: &str) -> Result<Unlocked> {
     if exists(path) {
         return Err(msg("A vault already exists."));
     }
+    check_new_password(password)?;
+    let kdf = new_kdf()?;
+    let key = derive_key(password, &kdf)?;
+    let vault = Unlocked { key, kdf, data: VaultData::default() };
+    vault.save(path)?;
+    Ok(vault)
+}
+
+fn check_new_password(password: &str) -> Result<()> {
     if password.chars().count() < MIN_PASSWORD_LEN {
         return Err(msg(format!(
             "Use a master password of at least {MIN_PASSWORD_LEN} characters."
         )));
     }
-    let kdf = KdfParams {
+    Ok(())
+}
+
+/// Current key settings with a fresh random salt.
+fn new_kdf() -> Result<KdfParams> {
+    Ok(KdfParams {
         alg: "argon2id".into(),
         m_kib: DEFAULT_M_KIB,
         t: DEFAULT_T,
         p: DEFAULT_P,
         salt: B64.encode(random::<16>()?),
-    };
-    let key = derive_key(password, &kdf)?;
-    let vault = Unlocked { key, kdf, data: VaultData::default() };
-    vault.save(path)?;
-    Ok(vault)
+    })
+}
+
+/// Compare keys without an early exit, so timing doesn't reveal how much matched.
+fn same_key(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    a.iter().zip(b).fold(0u8, |diff, (x, y)| diff | (x ^ y)) == 0
 }
 
 /// Open an existing vault with the master password.
@@ -165,8 +180,9 @@ impl Unlocked {
             fs::create_dir_all(dir)?;
         }
         let tmp = path.with_extension("json.tmp");
+        let _ = fs::remove_file(&tmp); // leftover from a crash; recreate it private
         {
-            let mut f = fs::File::create(&tmp)?;
+            let mut f = create_private(&tmp)?;
             f.write_all(&serde_json::to_vec_pretty(&file)?)?;
             f.sync_all()?;
         }
@@ -176,6 +192,45 @@ impl Unlocked {
         fs::rename(&tmp, path)?;
         Ok(())
     }
+
+    /// Re-encrypt the vault under a new master password, with a new salt.
+    ///
+    /// The backup is replaced too: otherwise `vault.json.bak` would still open
+    /// with the old password, which matters if you're changing it because it leaked.
+    pub fn change_password(&mut self, path: &Path, current: &str, new: &str) -> Result<()> {
+        let entered = derive_key(current, &self.kdf)?;
+        if !same_key(&entered, &self.key) {
+            return Err(msg("The current master password is wrong."));
+        }
+        check_new_password(new)?;
+        if current == new {
+            return Err(msg("The new password is the same as the current one."));
+        }
+        let kdf = new_kdf()?;
+        let key = derive_key(new, &kdf)?;
+        let old_key = std::mem::replace(&mut self.key, key);
+        let old_kdf = std::mem::replace(&mut self.kdf, kdf);
+        if let Err(e) = self.save(path) {
+            self.key = old_key;
+            self.kdf = old_kdf;
+            return Err(e);
+        }
+        fs::copy(path, path.with_extension("json.bak"))?;
+        Ok(())
+    }
+}
+
+/// A new file only its owner can read (0600 on Linux). Windows already keeps
+/// files under the user's AppData private to that user.
+fn create_private(path: &Path) -> std::io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
 }
 
 #[cfg(test)]
@@ -204,6 +259,33 @@ mod tests {
         assert!(unlock(&path, "wrong password").is_err());
         assert!(create(&path, "correct horse").is_err());
         assert!(path.with_extension("json.bak").exists());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "vault must be readable by its owner only");
+        }
+    }
+
+    #[test]
+    fn changing_the_master_password() {
+        let path = temp_path("vault.json");
+        let mut v = create(&path, "old password").unwrap();
+        v.data.folders.push(Folder { id: uuid::Uuid::new_v4(), name: "Kept".into(), parent_id: None });
+        v.save(&path).unwrap();
+
+        assert!(v.change_password(&path, "not the password", "new password").is_err());
+        assert!(v.change_password(&path, "old password", "short").is_err());
+        assert!(v.change_password(&path, "old password", "old password").is_err());
+        v.change_password(&path, "old password", "new password").unwrap();
+
+        assert!(unlock(&path, "old password").is_err());
+        assert_eq!(unlock(&path, "new password").unwrap().data.folders[0].name, "Kept");
+        // The backup must not open with the old password either.
+        let bak = path.with_extension("json.bak");
+        assert!(unlock(&bak, "old password").is_err());
+        assert!(unlock(&bak, "new password").is_ok());
     }
 
     #[test]

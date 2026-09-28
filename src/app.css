@@ -24,7 +24,10 @@
   --radius-sm: 6px;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   --font: system-ui, -apple-system, 'Segoe UI', 'Noto Sans', Roboto, sans-serif;
-  --mono: 'JetBrains Mono', 'Cascadia Mono', 'Fira Code', 'DejaVu Sans Mono', Consolas, monospace;
+  /* Windows: Cascadia Mono. GNOME 48+: Adwaita Mono. Fedora: Noto Sans Mono.
+     Ubuntu: Ubuntu Sans Mono / Ubuntu Mono. Then whatever the system calls monospace. */
+  --mono: 'JetBrains Mono', 'Cascadia Mono', 'Adwaita Mono', 'Ubuntu Sans Mono', 'Ubuntu Mono',
+    'Noto Sans Mono', 'DejaVu Sans Mono', 'Liberation Mono', Consolas, monospace;
   color-scheme: dark;
 }
 

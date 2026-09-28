@@ -2,17 +2,18 @@
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
 use crate::error::{Result, msg};
 use crate::model::{
-    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, Resolved, Tree, VaultData,
-    parse_address,
+    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, Resolved, Settings, Tree,
+    VaultData, parse_address,
 };
 use crate::ssh::{Sessions, SshAnswer, SshEvent};
 use crate::{rdp, vault};
@@ -21,11 +22,19 @@ pub struct AppState {
     vault_path: PathBuf,
     vault: Mutex<Option<vault::Unlocked>>,
     ssh: Sessions,
+    /// Last time you used the main window, for auto-lock. Wall-clock time, so
+    /// time spent asleep or suspended counts as idle.
+    last_activity: Mutex<SystemTime>,
 }
 
 impl AppState {
     pub fn new(vault_path: PathBuf) -> Self {
-        Self { vault_path, vault: Mutex::new(None), ssh: Sessions::default() }
+        Self {
+            vault_path,
+            vault: Mutex::new(None),
+            ssh: Sessions::default(),
+            last_activity: Mutex::new(SystemTime::now()),
+        }
     }
 
     pub fn ssh(&self) -> &Sessions {
@@ -34,6 +43,29 @@ impl AppState {
 
     fn lock(&self) -> MutexGuard<'_, Option<vault::Unlocked>> {
         self.vault.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn touch(&self) {
+        *self.last_activity.lock().unwrap_or_else(|e| e.into_inner()) = SystemTime::now();
+    }
+
+    /// Lock the vault if it has been idle for longer than the auto-lock setting.
+    /// Returns that setting (in minutes) when it locked. Open SSH and RDP
+    /// sessions keep running; only opening new ones needs the password again.
+    pub fn lock_if_idle(&self) -> Option<u32> {
+        let mut guard = self.lock();
+        let minutes = guard.as_ref()?.data.settings.auto_lock_minutes;
+        if minutes == 0 {
+            return None;
+        }
+        let last = *self.last_activity.lock().unwrap_or_else(|e| e.into_inner());
+        // A clock set backwards reads as "just now", never as a reason to lock.
+        let idle = SystemTime::now().duration_since(last).unwrap_or_default();
+        if idle < Duration::from_secs(u64::from(minutes) * 60) {
+            return None;
+        }
+        *guard = None;
+        Some(minutes)
     }
 
     fn read<T>(&self, f: impl FnOnce(&VaultData) -> Result<T>) -> Result<T> {
@@ -45,6 +77,7 @@ impl AppState {
     /// Apply a change, save the vault, and return the new tree. If saving fails
     /// the change is rolled back so memory and disk never disagree.
     fn modify(&self, f: impl FnOnce(&mut VaultData) -> Result<()>) -> Result<Tree> {
+        self.touch();
         let mut guard = self.lock();
         let v = guard.as_mut().ok_or_else(|| msg("The vault is locked."))?;
         let before = v.data.clone();
@@ -84,6 +117,7 @@ pub async fn vault_create(state: State<'_, AppState>, password: String) -> Resul
         .map_err(|e| msg(e.to_string()))??;
     let tree = Tree::from(&opened.data);
     *state.lock() = Some(opened);
+    state.touch();
     Ok(tree)
 }
 
@@ -97,6 +131,7 @@ pub async fn vault_unlock(state: State<'_, AppState>, password: String) -> Resul
         .map_err(|e| msg(e.to_string()))??;
     let tree = Tree::from(&opened.data);
     *state.lock() = Some(opened);
+    state.touch();
     Ok(tree)
 }
 
@@ -104,6 +139,38 @@ pub async fn vault_unlock(state: State<'_, AppState>, password: String) -> Resul
 pub async fn vault_lock(state: State<'_, AppState>) -> Result<()> {
     *state.lock() = None;
     Ok(())
+}
+
+/// The main window reports that you're using it (throttled), for auto-lock.
+#[tauri::command]
+pub async fn vault_touch(state: State<'_, AppState>) -> Result<()> {
+    state.touch();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn vault_change_password(app: AppHandle, current: String, new: String) -> Result<()> {
+    let current = Zeroizing::new(current);
+    let new = Zeroizing::new(new);
+    // Two key derivations, about a second: off the UI thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.touch();
+        let mut guard = state.lock();
+        let v = guard.as_mut().ok_or_else(|| msg("The vault is locked."))?;
+        v.change_password(&state.vault_path, &current, &new)
+    })
+    .await
+    .map_err(|e| msg(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Tree> {
+    settings.validate()?;
+    state.modify(|d| {
+        d.settings = settings;
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -324,11 +391,6 @@ fn launch(app: &AppHandle, state: &AppState, target: Resolved) -> Result<Connect
 }
 
 #[tauri::command]
-pub async fn ssh_title(state: State<'_, AppState>, session: String) -> Result<String> {
-    state.ssh.title(&session).ok_or_else(|| msg("This session has expired."))
-}
-
-#[tauri::command]
 pub async fn ssh_start(
     state: State<'_, AppState>,
     session: String,
@@ -363,4 +425,45 @@ pub async fn ssh_answer(
 ) -> Result<()> {
     state.ssh.answer(&session, answer);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unlocked_state(minutes: u32) -> AppState {
+        let dir = std::env::temp_dir().join(format!("reach-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("vault.json");
+        let mut v = vault::create(&path, "password1").unwrap();
+        v.data.settings.auto_lock_minutes = minutes;
+        let state = AppState::new(path);
+        *state.lock() = Some(v);
+        state
+    }
+
+    fn idle_for(state: &AppState, minutes: u64) {
+        *state.last_activity.lock().unwrap() = SystemTime::now() - Duration::from_secs(minutes * 60);
+    }
+
+    #[test]
+    fn auto_lock_after_idle() {
+        let state = unlocked_state(15);
+        state.touch();
+        assert_eq!(state.lock_if_idle(), None);
+        idle_for(&state, 14);
+        assert_eq!(state.lock_if_idle(), None, "not idle long enough yet");
+        idle_for(&state, 16);
+        assert_eq!(state.lock_if_idle(), Some(15));
+        assert!(state.lock().is_none(), "vault must be locked");
+        assert_eq!(state.lock_if_idle(), None, "already locked");
+    }
+
+    #[test]
+    fn auto_lock_never() {
+        let state = unlocked_state(0);
+        idle_for(&state, 60 * 24 * 30);
+        assert_eq!(state.lock_if_idle(), None);
+        assert!(state.lock().is_some());
+    }
 }

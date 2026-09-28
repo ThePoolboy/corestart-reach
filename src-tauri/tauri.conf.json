@@ -22,7 +22,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420"
     }
   },
   "bundle": {
@@ -44,8 +45,18 @@
       "icons/icon.ico"
     ],
     "linux": {
-      "rpm": { "recommends": ["freerdp"] },
-      "deb": { "recommends": ["freerdp3-x11 | freerdp2-x11"] }
+      "rpm": {
+        "recommends": ["freerdp"],
+        "desktopTemplate": "linux/corestart-reach.desktop"
+      },
+      "deb": {
+        "section": "net",
+        "recommends": ["freerdp3-x11 | freerdp3-sdl | freerdp3-wayland"],
+        "desktopTemplate": "linux/corestart-reach.desktop"
+      }
+    },
+    "windows": {
+      "nsis": { "installMode": "currentUser" }
     }
   }
 }

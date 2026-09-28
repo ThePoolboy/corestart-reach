@@ -35,10 +35,16 @@ export interface Credential {
   hasPassword: boolean;
 }
 
+export interface Settings {
+  /** Lock after this many minutes without using Reach; 0 = never. */
+  autoLockMinutes: number;
+}
+
 export interface Tree {
   folders: Folder[];
   connections: Connection[];
   credentials: Credential[];
+  settings: Settings;
 }
 
 export interface Saved {
@@ -109,6 +115,10 @@ export const api = {
   vaultCreate: (password: string) => invoke<Tree>('vault_create', { password }),
   vaultUnlock: (password: string) => invoke<Tree>('vault_unlock', { password }),
   vaultLock: () => invoke<void>('vault_lock'),
+  vaultTouch: () => invoke<void>('vault_touch'),
+  vaultChangePassword: (current: string, next: string) =>
+    invoke<void>('vault_change_password', { current, new: next }),
+  saveSettings: (settings: Settings) => invoke<Tree>('save_settings', { settings }),
   getTree: () => invoke<Tree>('get_tree'),
 
   saveConnection: (input: ConnectionInput) => invoke<Saved>('save_connection', { input }),
@@ -127,7 +137,6 @@ export const api = {
   quickConnect: (protocol: Protocol, address: string, login?: Login) =>
     invoke<ConnectOutcome>('quick_connect', { protocol, address, login: login ?? null }),
 
-  sshTitle: (session: string) => invoke<string>('ssh_title', { session }),
   sshStart: (
     session: string,
     cols: number,
