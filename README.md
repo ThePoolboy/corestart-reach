@@ -160,7 +160,7 @@ so nobody confuses them with the official project.
 
 ## Contributors
 
-- **spacelord**: project owner
+- **[ThePoolboy](https://github.com/ThePoolboy)**: project owner
 - **Claude** (Anthropic's AI assistant): co-author of code and documentation
 
 Claude's work shows in the history either as the commit author or as a

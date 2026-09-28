@@ -8,7 +8,8 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    watch: { ignored: ['**/src-tauri/**'] },
+    // Flatpak build folders contain a whole filesystem, with symlink loops.
+    watch: { ignored: ['**/src-tauri/**', '**/build-flatpak/**', '**/.flatpak-builder/**'] },
   },
   build: {
     target: 'es2022',
