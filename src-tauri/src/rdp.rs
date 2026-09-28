@@ -126,23 +126,51 @@ mod linux {
         let app = app.clone();
         let name = c.name.clone();
         std::thread::spawn(move || {
-            let mut last_error = None;
+            let mut watch = ExitWatch::default();
             for line in BufReader::new(stderr).lines().map_while(|l| l.ok()) {
-                if line.contains("[ERROR]") {
-                    // "[time] [pid:tid] [ERROR][tag] - [function]: message" -> message
-                    let text = line.rsplit_once("]: ").map(|(_, m)| m).unwrap_or(&line);
-                    last_error = Some(text.trim().to_string());
-                }
+                watch.line(&line);
             }
             if let Ok(status) = child.wait() {
-                if !status.success() {
-                    if let Some(message) = last_error {
-                        let _ = app.emit("rdp-exit", RdpExit { name, message });
-                    }
+                if let Some(message) = watch.problem(status.success()) {
+                    let _ = app.emit("rdp-exit", RdpExit { name, message });
                 }
             }
         });
         Ok(())
+    }
+
+    /// Session endings the user chose: signing out of Windows, or Disconnect in
+    /// the Start menu. FreeRDP logs them as errors and exits non-zero anyway.
+    const USER_ENDED: &[&str] = &["ERRINFO_LOGOFF_BY_USER", "ERRINFO_RPC_INITIATED_DISCONNECT_BY_USER"];
+
+    /// Reads FreeRDP's log to decide whether its exit is worth reporting.
+    #[derive(Default)]
+    struct ExitWatch {
+        user_ended: bool,
+        last_error: Option<String>,
+    }
+
+    impl ExitWatch {
+        fn line(&mut self, line: &str) {
+            if USER_ENDED.iter().any(|m| line.contains(m)) {
+                self.user_ended = true;
+            }
+            if line.contains("[ERROR]") {
+                // "[time] [pid:tid] [ERROR][tag] - [function]: message" -> message
+                let text = line.rsplit_once("]: ").map_or(line, |(_, m)| m).trim();
+                // "ERRINFO_IDLE_TIMEOUT (0x00000003):The idle session limit…" -> the sentence
+                let text = match text.split_once("):") {
+                    Some((code, sentence)) if code.starts_with("ERRINFO_") => sentence.trim(),
+                    _ => text,
+                };
+                self.last_error = Some(text.to_string());
+            }
+        }
+
+        /// The message to show, or `None` if the session ended normally.
+        fn problem(self, success: bool) -> Option<String> {
+            if success || self.user_ended { None } else { self.last_error }
+        }
     }
 
     #[cfg(test)]
@@ -168,6 +196,28 @@ mod linux {
             assert!(args.contains(&"/v:[fe80::1]:3389".to_string()));
             assert!(args.contains(&"/p:p@ss word".to_string()));
             assert!(args.contains(&"/d:CORP".to_string()));
+        }
+
+        #[test]
+        fn signing_out_is_not_an_error() {
+            let mut w = ExitWatch::default();
+            w.line("[08:40:01:123] [4242:4243] [ERROR][com.freerdp.core] - [rdp_print_errinfo]: ERRINFO_LOGOFF_BY_USER (0x0000000C):The disconnection was initiated by the user logging off their session on the server.");
+            assert_eq!(w.problem(false), None);
+        }
+
+        #[test]
+        fn real_failures_are_reported_readably() {
+            let mut w = ExitWatch::default();
+            w.line("[08:40:01:123] [4242:4243] [ERROR][com.freerdp.core] - [rdp_print_errinfo]: ERRINFO_IDLE_TIMEOUT (0x00000003):The idle session limit timer on the server has elapsed.");
+            assert_eq!(
+                w.problem(false).as_deref(),
+                Some("The idle session limit timer on the server has elapsed.")
+            );
+
+            let mut w = ExitWatch::default();
+            w.line("[08:40:01:123] [4242:4243] [ERROR][com.freerdp.core.transport] - [transport_connect]: ERRCONNECT_LOGON_FAILURE [0x00020014]");
+            assert_eq!(w.problem(false).as_deref(), Some("ERRCONNECT_LOGON_FAILURE [0x00020014]"));
+            assert_eq!(ExitWatch::default().problem(true), None);
         }
     }
 }

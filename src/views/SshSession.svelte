@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Channel } from '@tauri-apps/api/core';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { FitAddon } from '@xterm/addon-fit';
   import { Terminal } from '@xterm/xterm';
@@ -99,6 +100,14 @@
         term.focus();
         break;
       case 'closed':
+        // You logged out of the shell: close the window, like a normal terminal.
+        if (event.exited) {
+          getCurrentWindow()
+            .close()
+            .catch(() => term.write(`\r\n${DIM}${event.message} You can close this window.${RESET}\r\n`));
+          mode = 'closed';
+          break;
+        }
         term.write(`\r\n${DIM}${event.message} Press Enter to reconnect.${RESET}\r\n`);
         mode = 'closed';
         status = 'Disconnected';

@@ -1,7 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "terminal",
-  "description": "SSH windows may read and write clipboard text for copy/paste.",
+  "description": "SSH windows may copy/paste clipboard text and close themselves when the shell exits.",
   "windows": ["ssh-*"],
-  "permissions": ["clipboard-manager:allow-read-text", "clipboard-manager:allow-write-text"]
+  "permissions": [
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+    "core:window:allow-close"
+  ]
 }

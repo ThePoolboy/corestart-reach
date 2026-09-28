@@ -44,7 +44,7 @@
 
 <main class="lock">
   <form class="card" onsubmit={submit}>
-    <img class="logo" src="/icon.svg" alt="" width="72" height="72" />
+    <img class="logo" src="/icon.svg" alt="" width="60" height="60" />
     <h1>Corestart Reach</h1>
 
     {#if creating}
@@ -95,10 +95,12 @@
 </main>
 
 <style>
+  /* Scrolls instead of clipping when the window is short. The card centres
+     with margin:auto, which (unlike place-items) never cuts off its top. */
   .lock {
     height: 100%;
-    display: grid;
-    place-items: center;
+    overflow-y: auto;
+    display: flex;
     padding: 24px;
     background:
       radial-gradient(circle at 50% 0%, rgba(35, 160, 243, 0.12), transparent 60%),
@@ -106,10 +108,11 @@
   }
   .card {
     width: min(400px, 100%);
+    margin: auto;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 28px;
+    gap: 12px;
+    padding: 24px 28px;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--bg-raised);

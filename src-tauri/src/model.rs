@@ -375,6 +375,29 @@ impl VaultData {
         self.folders.retain(|f| f.id != id);
     }
 
+    /// Move a connection into a folder (`None` = top level).
+    pub fn move_connection(&mut self, id: Uuid, folder: Option<Uuid>) -> Result<()> {
+        self.check_folder(folder)?;
+        let c = self
+            .connections
+            .iter_mut()
+            .find(|c| c.id == id)
+            .ok_or_else(|| msg("That connection no longer exists."))?;
+        c.folder_id = folder;
+        Ok(())
+    }
+
+    /// Move a folder, with everything in it, into another folder (`None` = top level).
+    pub fn move_folder(&mut self, id: Uuid, parent: Option<Uuid>) -> Result<()> {
+        let name = self
+            .folders
+            .iter()
+            .find(|f| f.id == id)
+            .map(|f| f.name.clone())
+            .ok_or_else(|| msg("That folder no longer exists."))?;
+        self.save_folder(FolderInput { id: Some(id), name, parent_id: parent }).map(|_| ())
+    }
+
     pub fn save_credential(&mut self, input: CredentialInput) -> Result<Uuid> {
         let name = match input.name.trim() {
             "" if input.username.trim().is_empty() => {
@@ -460,6 +483,38 @@ impl VaultData {
     }
 }
 
+/// Split a typed address into host and port: `server`, `server:3390`,
+/// `10.0.0.5`, `fe80::1`, `[fe80::1]:22`. A pasted `rdp://` or `ssh://` prefix is ignored.
+pub fn parse_address(input: &str, default_port: u16) -> Result<(String, u16)> {
+    let s = input.trim();
+    let s = s.split_once("://").map_or(s, |(_, rest)| rest).trim_end_matches('/');
+    if s.is_empty() || s.contains(char::is_whitespace) {
+        return Err(msg("Enter a host name, FQDN or IP address (no spaces)."));
+    }
+    let port = |p: &str| {
+        p.parse::<u16>()
+            .ok()
+            .filter(|p| *p != 0)
+            .ok_or_else(|| msg(format!("'{p}' isn't a valid port. Use a number from 1 to 65535.")))
+    };
+    // [IPv6]:port
+    if let Some(rest) = s.strip_prefix('[') {
+        let (host, after) = rest.split_once(']').ok_or_else(|| msg("Missing ']' after the IPv6 address."))?;
+        let p = match after {
+            "" => default_port,
+            a => port(a.strip_prefix(':').unwrap_or(a))?,
+        };
+        return Ok((host.to_string(), p));
+    }
+    match s.split_once(':') {
+        // More than one colon: a bare IPv6 address with no port.
+        Some((_, rest)) if rest.contains(':') => Ok((s.to_string(), default_port)),
+        Some(("", _)) => Err(msg("Enter a host name before the port.")),
+        Some((host, p)) => Ok((host.to_string(), port(p)?)),
+        None => Ok((s.to_string(), default_port)),
+    }
+}
+
 /// A connection ready to launch.
 #[derive(Debug, Clone)]
 pub struct Resolved {
@@ -532,6 +587,41 @@ mod tests {
 
         d.delete_credential(cred);
         assert_eq!(d.resolve(id).unwrap().username, "admin");
+    }
+
+    #[test]
+    fn moving_items_between_folders() {
+        let mut d = VaultData::default();
+        let a = d.save_folder(FolderInput { id: None, name: "A".into(), parent_id: None }).unwrap();
+        let b = d.save_folder(FolderInput { id: None, name: "B".into(), parent_id: Some(a) }).unwrap();
+        let id = d.save_connection(input("srv1")).unwrap();
+
+        d.move_connection(id, Some(b)).unwrap();
+        assert_eq!(d.connection(id).unwrap().folder_id, Some(b));
+        d.move_connection(id, None).unwrap();
+        assert_eq!(d.connection(id).unwrap().folder_id, None);
+        assert!(d.move_connection(id, Some(Uuid::new_v4())).is_err(), "missing folder");
+
+        // A folder can't go inside itself or its own subfolder.
+        assert!(d.move_folder(a, Some(b)).is_err());
+        assert!(d.move_folder(a, Some(a)).is_err());
+        d.move_folder(b, None).unwrap();
+        assert_eq!(d.folders.iter().find(|f| f.id == b).unwrap().parent_id, None);
+        assert_eq!(d.folders.iter().find(|f| f.id == b).unwrap().name, "B");
+    }
+
+    #[test]
+    fn quick_connect_addresses() {
+        let ok = |s: &str| parse_address(s, 3389).unwrap();
+        assert_eq!(ok("server"), ("server".into(), 3389));
+        assert_eq!(ok(" srv01.corp.example.com "), ("srv01.corp.example.com".into(), 3389));
+        assert_eq!(ok("10.0.0.5:3390"), ("10.0.0.5".into(), 3390));
+        assert_eq!(ok("fe80::1"), ("fe80::1".into(), 3389));
+        assert_eq!(ok("[fe80::1]:22"), ("fe80::1".into(), 22));
+        assert_eq!(ok("rdp://server/"), ("server".into(), 3389));
+        for bad in ["", "two words", "server:0", "server:99999", "server:abc", ":22", "[fe80::1"] {
+            assert!(parse_address(bad, 22).is_err(), "{bad:?} should be rejected");
+        }
     }
 
     #[test]

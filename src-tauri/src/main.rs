@@ -8,9 +8,30 @@ mod rdp;
 mod ssh;
 mod vault;
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, PhysicalSize, WebviewWindow, WindowEvent};
 
 use commands::AppState;
+
+/// Shrink a window that would be bigger than its screen (small laptop panels,
+/// high display scaling) to 90% of the screen, and centre it.
+pub fn fit_to_screen(window: &WebviewWindow) {
+    let monitor = match window.current_monitor() {
+        Ok(Some(m)) => Some(m),
+        _ => window.primary_monitor().ok().flatten(),
+    };
+    let (Some(monitor), Ok(size)) = (monitor, window.outer_size()) else {
+        return;
+    };
+    // Wayland may not report a work area; fall back to the full screen.
+    let area = monitor.work_area().size;
+    let screen = if area.width > 0 && area.height > 0 { area } else { *monitor.size() };
+    let max_w = screen.width * 9 / 10;
+    let max_h = screen.height * 9 / 10;
+    if size.width > max_w || size.height > max_h {
+        let _ = window.set_size(PhysicalSize::new(size.width.min(max_w), size.height.min(max_h)));
+        let _ = window.center();
+    }
+}
 
 fn main() {
     // WebKitGTK's DMA-BUF renderer crashes on NVIDIA + Wayland ("Error 71 (Protocol
@@ -27,6 +48,9 @@ fn main() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             app.manage(AppState::new(dir.join("vault.json")));
+            if let Some(main) = app.get_webview_window("main") {
+                fit_to_screen(&main);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -48,9 +72,11 @@ fn main() {
             commands::delete_connection,
             commands::save_folder,
             commands::delete_folder,
+            commands::move_item,
             commands::save_credential,
             commands::delete_credential,
             commands::connect,
+            commands::quick_connect,
             commands::ssh_title,
             commands::ssh_start,
             commands::ssh_write,

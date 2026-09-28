@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
 use uuid::Uuid;
@@ -11,7 +11,8 @@ use zeroize::Zeroizing;
 
 use crate::error::{Result, msg};
 use crate::model::{
-    ConnectionInput, CredentialInput, FolderInput, Protocol, Tree, VaultData,
+    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, Resolved, Tree, VaultData,
+    parse_address,
 };
 use crate::ssh::{Sessions, SshAnswer, SshEvent};
 use crate::{rdp, vault};
@@ -156,6 +157,28 @@ pub async fn delete_folder(state: State<'_, AppState>, id: Uuid) -> Result<Tree>
     })
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ItemKind {
+    Connection,
+    Folder,
+}
+
+/// Drag and drop / "Move to…": put a connection or folder into `folder_id`
+/// (`None` = top level).
+#[tauri::command]
+pub async fn move_item(
+    state: State<'_, AppState>,
+    kind: ItemKind,
+    id: Uuid,
+    folder_id: Option<Uuid>,
+) -> Result<Tree> {
+    state.modify(|d| match kind {
+        ItemKind::Connection => d.move_connection(id, folder_id),
+        ItemKind::Folder => d.move_folder(id, folder_id),
+    })
+}
+
 #[tauri::command]
 pub async fn save_credential(state: State<'_, AppState>, input: CredentialInput) -> Result<Saved> {
     let mut id = Uuid::nil();
@@ -190,24 +213,85 @@ pub enum ConnectOutcome {
     NeedCredentials { username: String, domain: String },
 }
 
-/// Open a connection. `username`/`password` override the saved ones for this
-/// launch only (used after the "enter credentials" prompt).
+/// A login typed into the "log in" prompt. Used for one launch, never saved.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginOverride {
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    domain: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+}
+
+impl LoginOverride {
+    fn apply(self, target: &mut Resolved) {
+        if let Some(u) = self.username.map(|u| u.trim().to_string()).filter(|u| !u.is_empty()) {
+            target.username = u;
+        }
+        if let Some(d) = self.domain {
+            target.domain = d.trim().to_string();
+        }
+        if self.password.is_some() {
+            target.password = self.password;
+        }
+    }
+}
+
+/// Open a saved connection. `login` overrides the saved login for this launch
+/// only (used after the "log in" prompt).
 #[tauri::command]
 pub async fn connect(
     app: AppHandle,
     state: State<'_, AppState>,
     id: Uuid,
-    username: Option<String>,
-    password: Option<String>,
+    login: Option<LoginOverride>,
 ) -> Result<ConnectOutcome> {
     let mut target = state.read(|d| d.resolve(id))?;
-    if let Some(u) = username.filter(|u| !u.trim().is_empty()) {
-        target.username = u.trim().to_string();
+    if let Some(login) = login {
+        login.apply(&mut target);
     }
-    if password.is_some() {
-        target.password = password;
-    }
+    launch(&app, &state, target)
+}
 
+/// Connect to a host that isn't saved: `server`, `server:3390`, `10.0.0.5`,
+/// `[fe80::1]:22`, or for SSH `user@server`. Nothing is written to the vault.
+#[tauri::command]
+pub async fn quick_connect(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    protocol: Protocol,
+    address: String,
+    login: Option<LoginOverride>,
+) -> Result<ConnectOutcome> {
+    let address = address.trim();
+    // `user@host` is SSH shorthand. For RDP an @ belongs to a UPN login, not the address.
+    let (user, address) = match (protocol, address.rsplit_once('@')) {
+        (Protocol::Ssh, Some((user, host))) if !user.is_empty() => (user, host),
+        _ => ("", address),
+    };
+    let (host, port) = parse_address(address, protocol.default_port())?;
+    let name = if port == protocol.default_port() { host.clone() } else { format!("{host}:{port}") };
+    let mut target = Resolved {
+        name,
+        protocol,
+        host,
+        port,
+        username: user.to_string(),
+        domain: String::new(),
+        password: None,
+        ssh_key_path: String::new(),
+        ssh_key_passphrase: None,
+        rdp_screen: RdpScreen::Window,
+    };
+    if let Some(login) = login {
+        login.apply(&mut target);
+    }
+    launch(&app, &state, target)
+}
+
+fn launch(app: &AppHandle, state: &AppState, target: Resolved) -> Result<ConnectOutcome> {
     match target.protocol {
         Protocol::Rdp => {
             if rdp::needs_credentials(&target) {
@@ -216,20 +300,23 @@ pub async fn connect(
                     domain: target.domain,
                 });
             }
-            rdp::launch(&app, &target)?;
+            rdp::launch(app, &target)?;
         }
         Protocol::Ssh => {
             let title = format!("{} — SSH", target.name);
             let session = state.ssh.prepare(target);
             let url = format!("index.html?view=ssh&session={session}");
-            let built = WebviewWindowBuilder::new(&app, format!("ssh-{session}"), WebviewUrl::App(url.into()))
+            let built = WebviewWindowBuilder::new(app, format!("ssh-{session}"), WebviewUrl::App(url.into()))
                 .title(title)
                 .inner_size(960.0, 600.0)
                 .min_inner_size(420.0, 260.0)
                 .build();
-            if let Err(e) = built {
-                state.ssh.close(&session);
-                return Err(e.into());
+            match built {
+                Ok(window) => crate::fit_to_screen(&window),
+                Err(e) => {
+                    state.ssh.close(&session);
+                    return Err(e.into());
+                }
             }
         }
     }

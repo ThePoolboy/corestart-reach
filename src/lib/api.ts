@@ -81,6 +81,13 @@ export interface VaultStatus {
   minPasswordLength: number;
 }
 
+/** A login typed at connect time. Used once, never saved. */
+export interface Login {
+  username: string;
+  domain: string;
+  password: string;
+}
+
 export type ConnectOutcome =
   | { status: 'launched' }
   | { status: 'needCredentials'; username: string; domain: string };
@@ -90,7 +97,7 @@ export type SshEvent =
   | { type: 'hostKey'; host: string; port: number; algorithm: string; fingerprint: string }
   | { type: 'prompt'; prompt: string; secret: boolean }
   | { type: 'connected' }
-  | { type: 'closed'; message: string }
+  | { type: 'closed'; message: string; exited: boolean }
   | { type: 'failed'; message: string };
 
 export type SshAnswer =
@@ -110,11 +117,15 @@ export const api = {
   saveFolder: (input: { id: string | null; name: string; parentId: string | null }) =>
     invoke<Saved>('save_folder', { input }),
   deleteFolder: (id: string) => invoke<Tree>('delete_folder', { id }),
+  /** Move a connection or folder into `folderId` (null = top level). */
+  moveItem: (kind: 'connection' | 'folder', id: string, folderId: string | null) =>
+    invoke<Tree>('move_item', { kind, id, folderId }),
   saveCredential: (input: CredentialInput) => invoke<Saved>('save_credential', { input }),
   deleteCredential: (id: string) => invoke<Tree>('delete_credential', { id }),
 
-  connect: (id: string, username?: string, password?: string) =>
-    invoke<ConnectOutcome>('connect', { id, username: username ?? null, password: password ?? null }),
+  connect: (id: string, login?: Login) => invoke<ConnectOutcome>('connect', { id, login: login ?? null }),
+  quickConnect: (protocol: Protocol, address: string, login?: Login) =>
+    invoke<ConnectOutcome>('quick_connect', { protocol, address, login: login ?? null }),
 
   sshTitle: (session: string) => invoke<string>('ssh_title', { session }),
   sshStart: (

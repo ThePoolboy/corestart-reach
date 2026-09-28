@@ -2,16 +2,29 @@
   import { listen } from '@tauri-apps/api/event';
   import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import { api, type Connection, type Credential, type Folder, type Protocol, type Saved, type Tree } from '../lib/api';
+  import {
+    api,
+    type Connection,
+    type ConnectOutcome,
+    type Credential,
+    type Folder,
+    type Login,
+    type Protocol,
+    type Saved,
+    type Tree,
+  } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
   import { toast, toastError } from '../lib/toast.svelte';
-  import { searchRows, visibleRows, type Row } from '../lib/tree';
+  import { isInside, searchRows, visibleRows, type Row } from '../lib/tree';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+  import MoveDialog from './MoveDialog.svelte';
   import ConnectionEditor from './ConnectionEditor.svelte';
   import CredentialPrompt from './CredentialPrompt.svelte';
   import CredentialsPane from './CredentialsPane.svelte';
   import FolderPane from './FolderPane.svelte';
   import NameDialog from './NameDialog.svelte';
+  import QuickConnect from './QuickConnect.svelte';
 
   let { tree, onchange, onlock }: { tree: Tree; onchange: (t: Tree) => void; onlock: () => void } =
     $props();
@@ -26,7 +39,13 @@
   type Dialog =
     | { kind: 'confirm'; title: string; message: string; label: string; run: () => void | Promise<void> }
     | { kind: 'folder'; parentId: string | null }
-    | { kind: 'login'; id: string; name: string; username: string; domain: string };
+    | { kind: 'login'; name: string; username: string; domain: string; retry: (login: Login) => void }
+    | { kind: 'quick'; initial: string }
+    | { kind: 'move'; item: Item; name: string; current: string | null }
+    | { kind: 'rename'; folder: Folder };
+
+  /** Something in the tree that can be moved. */
+  type Item = { kind: 'connection' | 'folder'; id: string };
 
   let view = $state<View>({ kind: 'home' });
   let dialog = $state<Dialog | null>(null);
@@ -35,6 +54,12 @@
   let dirty = $state(false);
   /** Bumped after every save so the open editor remounts with fresh data. */
   let revision = $state(0);
+  /** Open right-click menu, and the row it belongs to. */
+  let ctx = $state<{ x: number; y: number; items: MenuItem[]; for: string | null } | null>(null);
+  /** Item being dragged, and the folder it would drop into ('' = top level). */
+  let dragging = $state<Item | null>(null);
+  let dropTarget = $state<string | null>(null);
+  let expandTimer: ReturnType<typeof setTimeout> | undefined;
 
   const OPEN_KEY = 'reach.openFolders';
   const open = new SvelteSet<string>(loadOpen());
@@ -124,19 +149,44 @@
 
   // ---- actions ----------------------------------------------------------
 
-  async function connect(id: string, username?: string, password?: string) {
-    const c = tree.connections.find((x) => x.id === id);
-    if (!c) return;
+  /** Launch, asking for a login first if there's nothing to log in with. */
+  async function launch(
+    name: string,
+    protocol: Protocol,
+    attempt: (login?: Login) => Promise<ConnectOutcome>,
+    login?: Login,
+  ) {
     try {
-      const result = await api.connect(id, username, password);
+      const result = await attempt(login);
       if (result.status === 'needCredentials') {
-        dialog = { kind: 'login', id, name: c.name, username: result.username, domain: result.domain };
-      } else if (c.protocol === 'rdp') {
-        toast(`Opening ${c.name}…`);
+        dialog = {
+          kind: 'login',
+          name,
+          username: result.username,
+          domain: result.domain,
+          retry: (l) => launch(name, protocol, attempt, l),
+        };
+      } else if (protocol === 'rdp') {
+        toast(`Opening ${name}…`);
       }
     } catch (e) {
       toastError(e);
     }
+  }
+
+  function connect(id: string) {
+    const c = tree.connections.find((x) => x.id === id);
+    if (c) launch(c.name, c.protocol, (login) => api.connect(id, login));
+  }
+
+  function quickConnect(protocol: Protocol, address: string) {
+    dialog = null;
+    launch(address, protocol, (login) => api.quickConnect(protocol, address, login));
+  }
+
+  function openQuickConnect(initial = '') {
+    menuOpen = false;
+    dialog = { kind: 'quick', initial };
   }
 
   function newConnection(protocol: Protocol, folderId: string | null = currentFolder) {
@@ -263,6 +313,160 @@
       open.add(row.folder.id);
     } else if (e.key === 'ArrowLeft' && row?.kind === 'folder') {
       open.delete(row.folder.id);
+    } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      keyMenu(e);
+    }
+  }
+
+  // ---- moving: drag and drop, "Move to…" ----------------------------------
+
+  function folderOf(item: Item): string | null {
+    return item.kind === 'folder'
+      ? (tree.folders.find((f) => f.id === item.id)?.parentId ?? null)
+      : (tree.connections.find((c) => c.id === item.id)?.folderId ?? null);
+  }
+
+  /** Can `item` go into `folderId` (null = top level)? */
+  function canMove(item: Item, folderId: string | null) {
+    if (folderOf(item) === folderId) return false;
+    return item.kind === 'connection' || !isInside(tree.folders, folderId, item.id);
+  }
+
+  async function moveItem(item: Item, folderId: string | null) {
+    if (!canMove(item, folderId)) return;
+    if (dirty && selectedId === item.id) {
+      toast('Save or revert your changes before moving this.', 'error');
+      return;
+    }
+    try {
+      onchange(await api.moveItem(item.kind, item.id, folderId));
+      reveal(folderId);
+      if (selectedId === item.id) revision++; // editor shows the new folder
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  function itemOf(row: Row): Item {
+    return row.kind === 'folder' ? { kind: 'folder', id: row.folder.id } : { kind: 'connection', id: row.connection.id };
+  }
+
+  function dragStart(e: DragEvent, row: Row) {
+    dragging = itemOf(row);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      // WebKit only starts a drag when some data is set.
+      e.dataTransfer.setData('text/plain', row.kind === 'folder' ? row.folder.name : row.connection.name);
+    }
+  }
+
+  function dragEnd() {
+    dragging = null;
+    dropTarget = null;
+    clearTimeout(expandTimer);
+  }
+
+  /** Hovering `folderId` ('' = top level) during a drag. */
+  function dragOver(e: DragEvent, folderId: string) {
+    e.stopPropagation();
+    if (!dragging || !canMove(dragging, folderId || null)) {
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    if (dropTarget !== folderId) {
+      dropTarget = folderId;
+      // Hold over a closed folder to open it.
+      clearTimeout(expandTimer);
+      if (folderId && !open.has(folderId)) expandTimer = setTimeout(() => open.add(folderId), 700);
+    }
+  }
+
+  function drop(e: DragEvent, folderId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const item = dragging;
+    dragEnd();
+    if (item) moveItem(item, folderId || null);
+  }
+
+  /** Where dropping onto this row puts things: into a folder, or beside a connection. */
+  function rowTarget(row: Row): string {
+    return row.kind === 'folder' ? row.folder.id : (row.connection.folderId ?? '');
+  }
+
+  // ---- right-click menus --------------------------------------------------
+
+  function askMove(item: Item) {
+    const name =
+      item.kind === 'folder'
+        ? (tree.folders.find((f) => f.id === item.id)?.name ?? '')
+        : (tree.connections.find((c) => c.id === item.id)?.name ?? '');
+    dialog = { kind: 'move', item, name, current: folderOf(item) };
+  }
+
+  function rowMenu(e: MouseEvent, row: Row) {
+    e.preventDefault();
+    e.stopPropagation();
+    const items: MenuItem[] =
+      row.kind === 'connection'
+        ? [
+            { label: 'Connect', icon: 'play', action: () => connect(row.connection.id) },
+            { label: 'Edit', action: () => go({ kind: 'connection', id: row.connection.id }) },
+            'separator',
+            { label: 'Move to…', icon: 'folder', action: () => askMove(itemOf(row)) },
+            { label: 'Duplicate', icon: 'copy', action: () => duplicate(row.connection.id) },
+            'separator',
+            { label: 'Delete', icon: 'trash', danger: true, action: () => confirmDeleteConnection(row.connection) },
+          ]
+        : [
+            { label: 'New RDP connection here', icon: 'monitor', action: () => newConnection('rdp', row.folder.id) },
+            { label: 'New SSH connection here', icon: 'terminal', action: () => newConnection('ssh', row.folder.id) },
+            { label: 'New subfolder', icon: 'folder', action: () => askNewFolder(row.folder.id) },
+            'separator',
+            { label: 'Rename…', action: () => (dialog = { kind: 'rename', folder: row.folder }) },
+            { label: 'Move to…', action: () => askMove(itemOf(row)) },
+            'separator',
+            { label: 'Delete folder', icon: 'trash', danger: true, action: () => confirmDeleteFolder(row.folder) },
+          ];
+    ctx = { x: e.clientX, y: e.clientY, items, for: rowId(row) };
+  }
+
+  function treeMenu(e: MouseEvent) {
+    e.preventDefault();
+    ctx = {
+      x: e.clientX,
+      y: e.clientY,
+      for: null,
+      items: [
+        { label: 'Quick connect…', icon: 'bolt', action: () => openQuickConnect() },
+        'separator',
+        { label: 'New RDP connection', icon: 'monitor', action: () => newConnection('rdp', null) },
+        { label: 'New SSH connection', icon: 'terminal', action: () => newConnection('ssh', null) },
+        { label: 'New folder', icon: 'folder', action: () => askNewFolder(null) },
+      ],
+    };
+  }
+
+  /** Shift+F10 or the Menu key opens the menu for the selected row. */
+  function keyMenu(e: KeyboardEvent) {
+    const row = rows.find((r) => rowId(r) === selectedId);
+    const el = document.querySelector('.tree .on');
+    if (!row || !el) return;
+    const r = el.getBoundingClientRect();
+    rowMenu(new MouseEvent('contextmenu', { clientX: r.left + 24, clientY: r.bottom }), row);
+    e.preventDefault();
+  }
+
+  async function renameFolder(folder: Folder, name: string) {
+    try {
+      const saved = await api.saveFolder({ id: folder.id, name, parentId: folder.parentId });
+      dialog = null;
+      onchange(saved.tree);
+      if (selectedId === folder.id && !dirty) revision++;
+    } catch (e) {
+      toastError(e);
     }
   }
 
@@ -279,6 +483,9 @@
     } else if (mod && e.key.toLowerCase() === 'l') {
       e.preventDefault();
       onlock();
+    } else if (mod && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openQuickConnect();
     } else if (mod && e.key.toLowerCase() === 'n') {
       e.preventDefault();
       newConnection(selectedConnection?.protocol ?? 'rdp');
@@ -311,10 +518,15 @@
           spellcheck="false"
           onkeydown={(e) => {
             if (e.key === 'Escape') query = '';
-            if (e.key === 'Enter' && rows[0]?.kind === 'connection') connect(rows[0].connection.id);
+            if (e.key !== 'Enter') return;
+            if (rows[0]?.kind === 'connection') connect(rows[0].connection.id);
+            else if (query.trim()) openQuickConnect(query.trim());
           }}
         />
       </div>
+      <button class="btn icon" title="Quick connect (Ctrl+K)" onclick={() => openQuickConnect()}>
+        <Icon name="bolt" />
+      </button>
       <div class="new-menu">
         <button class="btn primary icon" title="New…" onclick={() => (menuOpen = !menuOpen)}>
           <Icon name="plus" />
@@ -330,13 +542,38 @@
     </div>
 
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <ul class="tree" tabindex="0" onkeydown={treeKey} role="tree" aria-label="Connections">
+    <ul
+      class="tree"
+      class:drop-root={dropTarget === ''}
+      tabindex="0"
+      onkeydown={treeKey}
+      oncontextmenu={treeMenu}
+      ondragover={(e) => dragOver(e, '')}
+      ondrop={(e) => drop(e, '')}
+      ondragleave={(e) => {
+        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) dropTarget = null;
+      }}
+      role="tree"
+      aria-label="Connections"
+    >
       {#each rows as row (rowId(row))}
-        <li role="treeitem" aria-selected={selectedId === rowId(row)}>
+        <li
+          role="treeitem"
+          aria-selected={selectedId === rowId(row)}
+          draggable="true"
+          ondragstart={(e) => dragStart(e, row)}
+          ondragend={dragEnd}
+          ondragover={(e) => dragOver(e, rowTarget(row))}
+          ondrop={(e) => drop(e, rowTarget(row))}
+          oncontextmenu={(e) => rowMenu(e, row)}
+          class:dragged={dragging?.id === rowId(row)}
+        >
           {#if row.kind === 'folder'}
             <button
               class="row folder"
               class:on={selectedId === row.folder.id}
+              class:drop={dropTarget === row.folder.id}
+              class:menu-on={ctx?.for === row.folder.id}
               style="padding-left: {10 + row.depth * 16}px"
               onclick={() => clickRow(row)}
               tabindex="-1"
@@ -353,6 +590,7 @@
             <button
               class="row"
               class:on={selectedId === row.connection.id}
+              class:menu-on={ctx?.for === row.connection.id}
               style="padding-left: {row.path !== undefined ? 10 : 30 + row.depth * 16}px"
               onclick={() => clickRow(row)}
               ondblclick={() => connect(row.connection.id)}
@@ -370,7 +608,7 @@
       {:else}
         <li class="empty">
           {#if query.trim()}
-            Nothing matches "{query.trim()}".
+            Nothing matches "{query.trim()}".<br />Press Enter to quick connect to it.
           {:else}
             No connections yet. Press <strong>+</strong> to add one.
           {/if}
@@ -446,11 +684,12 @@
             Double-click a connection to open it.
           </p>
           <div class="home-actions">
+            <button class="btn primary" onclick={() => openQuickConnect()}><Icon name="bolt" /> Quick connect</button>
             <button class="btn" onclick={() => newConnection('rdp')}><Icon name="monitor" /> New RDP connection</button>
             <button class="btn" onclick={() => newConnection('ssh')}><Icon name="terminal" /> New SSH connection</button>
             <button class="btn" onclick={() => askNewFolder()}><Icon name="folder" /> New folder</button>
           </div>
-          <p class="keys">Ctrl+N new connection · Ctrl+F search · Ctrl+L lock</p>
+          <p class="keys">Ctrl+K quick connect · Ctrl+N new connection · Ctrl+F search · Ctrl+L lock</p>
         </div>
       {/if}
     {/key}
@@ -480,12 +719,45 @@
     name={d.name}
     username={d.username}
     domain={d.domain}
-    onsubmit={(username, password) => {
+    onsubmit={(login) => {
+      // `d` follows `dialog`, so take what we need before closing it.
+      const retry = d.retry;
       dialog = null;
-      connect(d.id, username, password);
+      retry(login);
     }}
     oncancel={() => (dialog = null)}
   />
+{:else if dialog?.kind === 'quick'}
+  <QuickConnect initial={dialog.initial} onsubmit={quickConnect} oncancel={() => (dialog = null)} />
+{:else if dialog?.kind === 'move'}
+  {@const item = dialog.item}
+  <MoveDialog
+    name={dialog.name}
+    folders={tree.folders}
+    current={dialog.current}
+    exclude={item.kind === 'folder' ? item.id : undefined}
+    onsubmit={(folderId) => {
+      // `item` follows `dialog`, so take it before closing the dialog.
+      const target = item;
+      dialog = null;
+      moveItem(target, folderId);
+    }}
+    oncancel={() => (dialog = null)}
+  />
+{:else if dialog?.kind === 'rename'}
+  {@const folder = dialog.folder}
+  <NameDialog
+    title="Rename folder"
+    label="Folder name"
+    initial={folder.name}
+    confirmLabel="Rename"
+    onsubmit={(name) => renameFolder(folder, name)}
+    oncancel={() => (dialog = null)}
+  />
+{/if}
+
+{#if ctx}
+  <ContextMenu x={ctx.x} y={ctx.y} items={ctx.items} onclose={() => (ctx = null)} />
 {/if}
 
 <style>
@@ -592,6 +864,21 @@
   }
   .tree:focus-visible .row.on {
     box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .row.menu-on {
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+  }
+  /* drag and drop */
+  .tree.drop-root {
+    box-shadow: inset 0 0 0 2px var(--accent);
+    border-radius: var(--radius-sm);
+  }
+  .row.drop {
+    background: var(--bg-selected);
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  li.dragged {
+    opacity: 0.45;
   }
   .row.folder :global(svg) {
     flex: none;

@@ -13,7 +13,8 @@
     copy: 'M9 9h10v10H9zM5 15V5h10',
     trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
     x: 'M6 6l12 12M18 6L6 18',
-    shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+    bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+    shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   } as const;
 
   export type IconName = keyof typeof paths;

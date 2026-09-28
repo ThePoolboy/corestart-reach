@@ -35,7 +35,8 @@ pub enum SshEvent {
     /// The shell is open; keystrokes now go to the server.
     Connected,
     /// The session ended normally.
-    Closed { message: String },
+    /// `exited` is true when the remote shell exited by itself.
+    Closed { message: String, exited: bool },
     /// The session could not be opened, or ended with an error.
     Failed { message: String },
 }
@@ -103,7 +104,7 @@ impl Sessions {
                 entry.answer = None;
             }
             ui.emit(match result {
-                Ok(message) => SshEvent::Closed { message },
+                Ok(closed) => closed,
                 Err(message) => SshEvent::Failed { message },
             });
         });
@@ -265,14 +266,14 @@ fn err(e: russh::Error) -> String {
     e.to_string()
 }
 
-/// Run one session from connect to close. `Ok` carries the closing message.
+/// Run one session from connect to close. `Ok` carries the `Closed` event.
 async fn run(
     ui: &Ui,
     target: Resolved,
     cols: u32,
     rows: u32,
     output: Channel<InvokeResponseBody>,
-) -> std::result::Result<String, String> {
+) -> std::result::Result<SshEvent, String> {
     ui.status(format!("Connecting to {}:{}…", target.host, target.port));
 
     let config = Arc::new(client::Config {
@@ -324,14 +325,20 @@ async fn run(
                 }
             }
             ChannelMsg::ExitStatus { exit_status: code } => exit_status = Some(code),
-            ChannelMsg::Eof | ChannelMsg::Close => break,
+            // EOF only means "no more output"; the exit status can still follow it.
+            ChannelMsg::Close => break,
             _ => {}
         }
     }
     let _ = handle.disconnect(russh::Disconnect::ByApplication, "", "en").await;
     Ok(match exit_status {
-        Some(0) | None => "Connection closed.".into(),
-        Some(code) => format!("Connection closed (exit code {code})."),
+        // The shell exited (`exit`, `logout`, Ctrl+D): the window closes itself.
+        Some(code) => SshEvent::Closed {
+            message: format!("Logged out (exit code {code})."),
+            exited: true,
+        },
+        // No exit status: the server went away (reboot, network drop).
+        None => SshEvent::Closed { message: "Connection lost.".into(), exited: false },
     })
 }
 
