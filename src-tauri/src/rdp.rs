@@ -53,10 +53,12 @@ mod linux {
     use crate::error::msg;
     use crate::model::RdpScreen;
 
-    /// FreeRDP binary names, best first. Distros name them differently.
+    /// FreeRDP binary names, best first. Distros name them differently; the
+    /// Flatpak ships only the SDL3 client (native Wayland).
     const CLIENTS: &[&str] = &[
         "xfreerdp3",
         "xfreerdp",
+        "sdl3-freerdp",
         "sdl-freerdp3",
         "sdl-freerdp",
         "wlfreerdp3",

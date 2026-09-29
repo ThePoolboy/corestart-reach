@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 description = "Open-source RDP and SSH connection manager"
 license = "GPL-3.0-only"
+repository = "https://github.com/ThePoolboy/corestart-reach"
+homepage = "https://www.corestart.network"
 rust-version = "1.85"
 
 [dependencies]

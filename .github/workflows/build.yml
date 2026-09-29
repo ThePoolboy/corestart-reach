@@ -2,6 +2,10 @@
 #   - the Flatpak (all Linux distributions)
 #   - the Windows installer (setup.exe)
 # Both are attached to each run under "Artifacts" (kept 30 days).
+#
+# Pushing a version tag (git tag v0.1.0 && git push origin v0.1.0) also creates
+# a DRAFT GitHub Release with both files attached. Nothing is public until you
+# open the draft on GitHub and press Publish.
 name: Build
 
 on:
@@ -25,6 +29,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Version tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          conf=$(jq -r .version src-tauri/tauri.conf.json)
+          pkg=$(jq -r .version package.json)
+          cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          meta=$(grep -o '<release version="[^"]*"' flatpak/network.corestart.reach.metainfo.xml | head -1 | cut -d'"' -f2)
+          echo "tag=$tag tauri.conf=$conf package.json=$pkg Cargo.toml=$cargo metainfo=$meta"
+          [ "$tag" = "$conf" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$cargo" ] && [ "$tag" = "$meta" ]
+
       - name: Install WebKitGTK
         run: |
           sudo apt-get update
@@ -43,10 +58,19 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
       - run: npm ci
 
       - name: Check the interface
         run: npm run check
+
+      - name: Audit dependencies for known vulnerabilities
+        run: |
+          npm audit --omit=dev
+          cd src-tauri && cargo audit
 
       - name: Lint and test the Rust core
         working-directory: src-tauri
@@ -103,14 +127,39 @@ jobs:
     name: Flatpak
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged
     steps:
       - uses: actions/checkout@v7
 
+      # Builds offline, like Flathub, from flatpak/*-sources.json.
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: flatpak/network.corestart.reach.yml
           bundle: corestart-reach.flatpak
           artifact-name: corestart-reach-flatpak
           cache-key: flatpak-builder-${{ hashFiles('flatpak/network.corestart.reach.yml') }}
+
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [checks, windows, flatpak]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: downloads
+          merge-multiple: true
+
+      - name: Create a draft release with both downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mv downloads/corestart-reach.flatpak "downloads/Corestart-Reach_${version}_x86_64.flatpak"
+          ls -l downloads
+          gh release create "$GITHUB_REF_NAME" downloads/* \
+            --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "Corestart Reach $version" --generate-notes

@@ -1,7 +1,7 @@
 # Test checklist
 
 Run through this on each system: Windows 11, Fedora 44 GNOME, Fedora 44 KDE Plasma and
-Ubuntu 26.04 LTS. Note the system and the build (commit or version) with anything that fails,
+Ubuntu 24.04 LTS. Note the system and the build (commit or version) with anything that fails,
 plus the exact error text or a screenshot.
 
 Get the packages from the latest green run under **Actions → Build → Artifacts**
@@ -12,7 +12,7 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 - [ ] **Windows:** run `Corestart-Reach_…_x64-setup.exe`. SmartScreen warns (unsigned test
       build): **More info → Run anyway**. Reach is in the Start menu.
 - [ ] **Fedora (GNOME and KDE):** `flatpak install --user ./corestart-reach.flatpak`. It downloads
-      the GNOME 50 runtime from Flathub the first time.
+      the GNOME 51 runtime from Flathub the first time.
 - [ ] **Ubuntu:** first `sudo apt install flatpak`, add Flathub
       (`flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`),
       log out and back in, then install the file as above.
@@ -59,6 +59,9 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 - [ ] **Window** mode opens at about 80% of the screen; resizing it resizes the remote
       desktop. **Full screen** mode fills the screen.
 - [ ] Copy and paste text both ways between the remote desktop and your machine.
+- [ ] **Flatpak:** the RDP window is sharp on a scaled display (125%, 150%), keyboard
+      shortcuts like Alt+Tab reach the remote desktop while it has focus (GNOME may ask
+      once to allow this), and sound plays.
 - [ ] Sign out of Windows, and Start → Disconnect: no error appears in Reach.
 - [ ] A wrong password shows a readable error in Reach (Linux) or mstsc's own message
       (Windows).

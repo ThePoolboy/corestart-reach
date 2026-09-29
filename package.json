@@ -2,6 +2,8 @@
   "name": "corestart-reach",
   "private": true,
   "version": "0.1.0",
+  "description": "Open-source RDP and SSH connection manager",
+  "repository": "github:ThePoolboy/corestart-reach",
   "type": "module",
   "license": "GPL-3.0-only",
   "scripts": {

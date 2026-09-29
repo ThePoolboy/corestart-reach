@@ -4,9 +4,14 @@ Corestart Reach ships on Linux only as a Flatpak, with FreeRDP built in.
 
 | File | What it is |
 | --- | --- |
-| `network.corestart.reach.yml` | Build recipe: libxkbfile, FreeRDP 3, then Reach |
+| `network.corestart.reach.yml` | Build recipe: FreeRDP 3 (SDL3 client), then Reach |
+| `cargo-sources.json`, `node-sources.json` | Every Rust crate and npm package, so the build runs offline |
 | `network.corestart.reach.desktop` | App menu entry |
 | `network.corestart.reach.metainfo.xml` | Store listing for Flathub, GNOME Software and KDE Discover |
+
+The recipe uses the GNOME 51 runtime. FreeRDP is built with only its **SDL3 client**: it
+runs natively on Wayland and falls back to X11 on X11 desktops, so RDP windows are sharp on
+scaled displays.
 
 ## Build and run locally
 
@@ -14,8 +19,8 @@ One-time setup (per user, no root needed):
 
 ```bash
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user flathub org.flatpak.Builder org.gnome.Sdk//50 \
-  org.freedesktop.Sdk.Extension.rust-stable//25.08 org.freedesktop.Sdk.Extension.node24//25.08
+flatpak install --user flathub org.flatpak.Builder org.gnome.Sdk//51 \
+  org.freedesktop.Sdk.Extension.rust-stable//26.08 org.freedesktop.Sdk.Extension.node24//26.08
 ```
 
 Build, install and run (or use the VS Code task **Reach: Build and install Flatpak**):
@@ -39,12 +44,29 @@ flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakr
 GitHub builds the same bundle on every push (Actions → Build → Artifacts →
 `corestart-reach-flatpak`).
 
+## After changing dependencies
+
+The build has no network access, so after any change to `src-tauri/Cargo.lock` or
+`package-lock.json`, regenerate the source lists with
+[flatpak-builder-tools](https://github.com/flatpak/flatpak-builder-tools):
+
+```bash
+python3 -m venv /tmp/fbt && /tmp/fbt/bin/pip install aiohttp tomlkit \
+  "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
+curl -fsSLO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+/tmp/fbt/bin/python flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
+/tmp/fbt/bin/flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
+```
+
+If you forget, the Flatpak build fails with a missing-package error, so it can't slip
+through unnoticed.
+
 ## Sandbox permissions
 
 | Permission | Why |
 | --- | --- |
 | `--share=network` | RDP and SSH connections |
-| `--socket=wayland`, `--socket=x11`, `--device=dri` | Reach's windows, and FreeRDP's RDP window (an X11 client) |
+| `--socket=wayland`, `--socket=fallback-x11`, `--device=dri` | Reach's windows and the RDP window |
 | `--socket=pulseaudio` | Sound from the remote desktop |
 | `--socket=ssh-auth` | Use your ssh-agent |
 | `--filesystem=~/.ssh` | SSH keys and `known_hosts`, shared with OpenSSH |
@@ -58,17 +80,34 @@ The vault lives inside the sandbox, at
 ## Updating FreeRDP
 
 Change the URL and `sha256` of the `freerdp` module. FreeRDP publishes the checksum next to
-each release (`freerdp-<version>.tar.gz.sha256`). The `x-checker-data` blocks let
-Flathub's bot propose these updates automatically once the app is on Flathub.
+each release (`freerdp-<version>.tar.gz.sha256`). Once the app is on Flathub, its bot
+reads the `x-checker-data` block and opens these updates automatically.
 
-## Before submitting to Flathub
+## Submitting to Flathub
 
-- **Offline build.** Flathub builds without network access, so the `--share=network` in the
-  `corestart-reach` module has to go. Generate source lists with
-  [flatpak-builder-tools](https://github.com/flatpak/flatpak-builder-tools)
-  (`flatpak-cargo-generator.py src-tauri/Cargo.lock` and
-  `flatpak-node-generator npm package-lock.json`) and add them as sources.
-- **Screenshots** in the metainfo (Flathub requires at least one).
-- **Verified badge.** Serve the token Flathub gives you at
-  `https://corestart.network/.well-known/org.flathub.VerifiedApps.txt`.
-- **Source from a tag.** Build from a tagged git release instead of the local folder.
+1. **Screenshots** in the metainfo (Flathub requires at least one), then tag the release
+   (`v0.1.0`).
+2. **Make `https://corestart.network` load.** Flathub checks the domain in the app ID;
+   today only `www.corestart.network` resolves.
+3. Fork [flathub/flathub](https://github.com/flathub/flathub), branch from `new-pr`, and add:
+   - this manifest, with the `dir` source replaced by the tagged release:
+     ```yaml
+     - type: git
+       url: https://github.com/ThePoolboy/corestart-reach.git
+       tag: v0.1.0
+       commit: <commit the tag points to>
+     ```
+   - `cargo-sources.json` and `node-sources.json`
+4. Open the pull request against `new-pr`, titled "Add network.corestart.reach".
+5. Ask for linter exceptions for the two SSH permissions. `flatpak-builder-lint` reports
+   them as `finish-args-ssh-filesystem-access` and `finish-args-has-socket-ssh-auth`.
+   Reason: "SSH client: reads the user's SSH keys and known_hosts shared with OpenSSH, and
+   authenticates through the user's ssh-agent."
+6. After approval, verify the app on flathub.org by serving the token Flathub gives you at
+   `https://corestart.network/.well-known/org.flathub.VerifiedApps.txt`.
+
+Check a manifest the way Flathub will:
+
+```bash
+flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest flatpak/network.corestart.reach.yml
+```

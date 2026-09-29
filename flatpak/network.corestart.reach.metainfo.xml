@@ -3,7 +3,7 @@
 <component type="desktop-application">
   <id>network.corestart.reach</id>
   <name>Corestart Reach</name>
-  <summary>Manage and open your RDP and SSH connections</summary>
+  <summary>Manage RDP and SSH connections</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
 

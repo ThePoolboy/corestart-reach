@@ -73,6 +73,10 @@ for mstsc (what `cmdkey` does), and Windows clears it when you sign out.
 **There is no password recovery.** If you forget the master password, the vault can't be
 opened.
 
+Reach sends nothing anywhere except the RDP and SSH connections you open: no telemetry, no
+accounts. To report a security problem privately, see [SECURITY.md](SECURITY.md). Changes
+in each version are in [CHANGELOG.md](CHANGELOG.md).
+
 Only one copy of Reach runs at a time; starting it again brings the open one forward.
 
 ## Keyboard shortcuts
@@ -145,8 +149,8 @@ flatpak/                    Flatpak recipe, app menu entry and store listing
   itself.
 - **FreeRDP 2 isn't supported** when running from source: Reach needs FreeRDP 3 to pass the
   password privately. The Flatpak includes FreeRDP 3.
-- **RDP in the Flatpak** runs FreeRDP's X11 client, so on Wayland it uses XWayland, which
-  every mainstream desktop provides.
+- **RDP in the Flatpak** uses FreeRDP's SDL3 client, which runs natively on Wayland (X11 on
+  X11 desktops). Running from source uses your distribution's FreeRDP client instead.
 
 ## License
 

@@ -1,0 +1,13 @@
+# cargo audit settings. Every ignored advisory needs a reason here, and is
+# reviewed again whenever a fix is released.
+[advisories]
+ignore = [
+    # RSA "Marvin attack": a timing side channel in the `rsa` crate's
+    # private-key operations; no fixed release exists yet. Reach reaches this
+    # only through SSH RSA keys: it signs once per login with your own RSA key
+    # and verifies servers' RSA host keys (public-key only). It never decrypts
+    # with RSA, the operation the attack mainly targets. Dropping RSA would break
+    # SSH to the many servers that still use RSA keys. Revisit when rsa 0.10 is
+    # released with constant-time operations.
+    "RUSTSEC-2023-0071",
+]

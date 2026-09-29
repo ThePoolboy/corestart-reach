@@ -3,12 +3,12 @@
 #   flatpak run org.flatpak.Builder --user --install --force-clean \
 #     build-flatpak flatpak/network.corestart.reach.yml
 #
-# Test builds download Rust crates and npm packages while building (the
-# --share=network below). Flathub builds offline, so submitting there will need
-# generated source lists instead; see flatpak/README.md.
+# The build runs offline, as Flathub requires: every Rust crate and npm package
+# is listed in cargo-sources.json and node-sources.json. Regenerate them after
+# changing Cargo.lock or package-lock.json (see flatpak/README.md).
 id: network.corestart.reach
 runtime: org.gnome.Platform
-runtime-version: "50"
+runtime-version: "51"
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -18,8 +18,8 @@ command: corestart-reach
 finish-args:
   - --share=ipc
   - --share=network        # RDP and SSH connections
-  - --socket=wayland       # the Reach windows
-  - --socket=x11           # FreeRDP's RDP window is an X11 client (XWayland on Wayland)
+  - --socket=wayland       # Reach's windows and the RDP window (FreeRDP's SDL3 client)
+  - --socket=fallback-x11  # the same on X11 desktops
   - --device=dri           # GPU drawing for the interface and the RDP window
   - --socket=pulseaudio    # sound from the remote desktop
   - --socket=ssh-auth      # your ssh-agent
@@ -34,22 +34,9 @@ cleanup:
   - "*.la"
 
 modules:
-  # FreeRDP's X11 client needs libxkbfile, which the GNOME runtime doesn't ship.
-  - name: libxkbfile
-    buildsystem: meson
-    config-opts:
-      - -Ddefault_library=shared
-    sources:
-      - type: archive
-        url: https://www.x.org/releases/individual/lib/libxkbfile-1.1.3.tar.xz
-        sha256: a9b63eea997abb9ee6a8b4fbb515831c841f471af845a09de443b28003874bec
-        x-checker-data:
-          type: anitya
-          project-id: 1781
-          url-template: https://www.x.org/releases/individual/lib/libxkbfile-$version.tar.xz
-
-  # The RDP client. Only what Reach uses: the X11 client, clipboard, sound and
-  # auto-reconnect. No server parts, and no codecs the runtime can't provide.
+  # The RDP client. Only what Reach uses: the SDL3 client (native Wayland, X11
+  # fallback), clipboard, sound and auto-reconnect. No server parts, and no
+  # codecs the runtime can't provide.
   - name: freerdp
     buildsystem: cmake-ninja
     builddir: true # FreeRDP refuses to build inside its source tree
@@ -57,9 +44,11 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_LIBDIR=lib
       - -DUSE_VERSION_FROM_GIT_TAG=OFF
-      - -DWITH_X11=ON
+      - -DWITH_CLIENT_SDL=ON
+      - -DWITH_CLIENT_SDL3=ON
+      - -DWITH_CLIENT_SDL2=OFF
+      - -DWITH_X11=OFF
       - -DWITH_WAYLAND=OFF
-      - -DWITH_CLIENT_SDL=OFF
       - -DWITH_SERVER=OFF
       - -DWITH_SHADOW=OFF
       - -DWITH_PROXY=OFF
@@ -110,16 +99,17 @@ modules:
       append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
       env:
         CARGO_HOME: /run/build/corestart-reach/cargo
-        npm_config_cache: /run/build/corestart-reach/npm-cache
+        CARGO_NET_OFFLINE: "true"
         CARGO_TERM_COLOR: never
-      build-args:
-        - --share=network # test builds only; Flathub needs offline sources
+        XDG_CACHE_HOME: /run/build/corestart-reach/flatpak-node/cache
+        npm_config_cache: /run/build/corestart-reach/flatpak-node/npm-cache
+        npm_config_offline: "true"
     build-commands:
-      - npm ci --no-audit --no-fund
+      - npm ci --offline --no-audit --no-fund
       - npm run build
       # tauri/custom-protocol serves the built interface from inside the binary
       # (what `tauri build` does), instead of the dev server.
-      - cargo build --release --locked --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
+      - cargo build --release --offline --locked --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
       - install -Dm755 src-tauri/target/release/corestart-reach /app/bin/corestart-reach
       - install -Dm644 flatpak/network.corestart.reach.desktop /app/share/applications/network.corestart.reach.desktop
       - install -Dm644 flatpak/network.corestart.reach.metainfo.xml /app/share/metainfo/network.corestart.reach.metainfo.xml
@@ -138,3 +128,5 @@ modules:
           - src-tauri/gen
           - build-flatpak
           - .flatpak-builder
+      - cargo-sources.json
+      - node-sources.json
