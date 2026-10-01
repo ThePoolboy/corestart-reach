@@ -85,8 +85,8 @@ reads the `x-checker-data` block and opens these updates automatically.
 
 ## Submitting to Flathub
 
-1. **Screenshots** in the metainfo (Flathub requires at least one), then tag the release
-   (`v0.1.0`).
+1. Tag the release (`v0.1.0`). The metainfo's screenshots load from `screenshots/` on
+   `main`, so keep those file names when replacing the pictures.
 2. **Make `https://corestart.network` load.** Flathub checks the domain in the app ID;
    today only `www.corestart.network` resolves.
 3. Fork [flathub/flathub](https://github.com/flathub/flathub), branch from `new-pr`, and add:

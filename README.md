@@ -5,6 +5,19 @@ mRemoteNG and Royal TS. Free and open source under GPL-3.0.
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/thepoolboy)
 
+![Corestart Reach with connections in folders](screenshots/main.png)
+
+<table>
+  <tr>
+    <td><img src="screenshots/ssh.png" alt="An SSH session in its own terminal window"></td>
+    <td><img src="screenshots/rdp.png" alt="An RDP session to a Windows server"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/credentials.png" alt="Saved credentials shared by several connections"></td>
+    <td><img src="screenshots/quick-connect.png" alt="Quick connect to a host without saving it"></td>
+  </tr>
+</table>
+
 - **One encrypted vault** for every host, username, password and note. Nothing is readable
   without your master password.
 - **RDP** opens in your system's own client: `mstsc` on Windows, FreeRDP on Linux.

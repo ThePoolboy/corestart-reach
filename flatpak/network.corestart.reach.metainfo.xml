@@ -25,9 +25,37 @@
       <li>Quick connect to any host without saving it</li>
       <li>Folders with drag and drop, search and keyboard shortcuts</li>
       <li>Locks itself when you're away</li>
+      <li>Light and dark themes</li>
     </ul>
     <p>Free and open source, with no paid version.</p>
   </description>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Connections in folders, ready to open with a double-click</caption>
+      <image>https://raw.githubusercontent.com/ThePoolboy/corestart-reach/main/screenshots/main.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>SSH opens in its own terminal window</caption>
+      <image>https://raw.githubusercontent.com/ThePoolboy/corestart-reach/main/screenshots/ssh.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>RDP opens logged in, in its own window</caption>
+      <image>https://raw.githubusercontent.com/ThePoolboy/corestart-reach/main/screenshots/rdp.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Save a login once and use it on many connections</caption>
+      <image>https://raw.githubusercontent.com/ThePoolboy/corestart-reach/main/screenshots/credentials.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Quick connect to any host without saving it</caption>
+      <image>https://raw.githubusercontent.com/ThePoolboy/corestart-reach/main/screenshots/quick-connect.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Everything stays locked behind your master password</caption>
+      <image>https://raw.githubusercontent.com/ThePoolboy/corestart-reach/main/screenshots/lock.png</image>
+    </screenshot>
+  </screenshots>
 
   <launchable type="desktop-id">network.corestart.reach.desktop</launchable>
   <provides>
