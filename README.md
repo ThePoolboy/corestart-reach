@@ -3,6 +3,8 @@
 A simple, modern RDP and SSH connection manager for Windows and Linux, in the spirit of
 mRemoteNG and Royal TS. Free and open source under GPL-3.0.
 
+[![Support on Ko-fi](https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/thepoolboy)
+
 - **One encrypted vault** for every host, username, password and note. Nothing is readable
   without your master password.
 - **RDP** opens in your system's own client: `mstsc` on Windows, FreeRDP on Linux.
@@ -151,6 +153,23 @@ flatpak/                    Flatpak recipe, app menu entry and store listing
   password privately. The Flatpak includes FreeRDP 3.
 - **RDP in the Flatpak** uses FreeRDP's SDL3 client, which runs natively on Wayland (X11 on
   X11 desktops). Running from source uses your distribution's FreeRDP client instead.
+
+## Support Reach
+
+Reach is free and always will be: no paid edition, no ads, no locked features. If it saves
+you time, you can help keep it going. Donations are optional and don't unlock anything.
+
+- **[Ko-fi](https://ko-fi.com/thepoolboy)**: one-off or monthly, by card or PayPal.
+- **Crypto**: scan a code or copy the address. Check the address in your wallet before
+  sending; crypto payments can't be reversed.
+
+| Bitcoin (BTC) | Ethereum (ETH) |
+| :---: | :---: |
+| <img src="assets/donate/bitcoin.png" alt="Bitcoin QR code" width="160"> | <img src="assets/donate/ethereum.png" alt="Ethereum QR code" width="160"> |
+| `bc1qrwfpl77k7zfgrea8suv78cxn8wp3lvn3mjumz0` | `0xB968531aa4f6EaE2c2c479B56b111c8B3B5c6C54` |
+
+The same links are in Reach under **Settings → Support Reach**. Starring the repository,
+reporting bugs and telling others about Reach help too.
 
 ## License
 
