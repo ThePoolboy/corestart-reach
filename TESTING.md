@@ -19,7 +19,8 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       log out and back in, then install the file as above.
 - [ ] Reach shows up in the app menu / Activities search when you type "RDP" or "SSH",
       with the Corestart icon.
-- [ ] Opening it shows the Reach icon in the taskbar / dock (not a generic one).
+- [ ] Opening it shows the Reach icon in the title bar and the taskbar / dock (not the generic
+      Wayland "W" or a gear). RDP and SSH windows do too and group with Reach.
 - [ ] GNOME Software / KDE Discover show Reach with its description (from the metainfo).
 - [ ] Nothing else needs installing: RDP works without a system FreeRDP.
 

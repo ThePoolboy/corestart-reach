@@ -77,6 +77,12 @@ fn main() {
         }
     }
 
+    // Wayland and X11 match windows to the desktop file (and its icon) by the
+    // program name, which would be "corestart-reach". Without a match KDE shows a
+    // generic Wayland icon. Name it after the desktop file before GTK starts.
+    #[cfg(target_os = "linux")]
+    glib::set_prgname(Some("network.corestart.reach"));
+
     tauri::Builder::default()
         // One copy of Reach at a time: two copies saving the same vault would
         // overwrite each other's changes. Starting it again brings this one forward.
