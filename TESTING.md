@@ -38,6 +38,9 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 - [ ] Auto-lock "Never": it stays unlocked. The setting survives a restart.
 - [ ] Settings → **Source code on GitHub** and **Support on Ko-fi** open in the web browser
       (in the Flatpak too). The copy buttons copy each address; **Show QR codes** shows both.
+- [ ] Settings → Appearance: Light and Dark switch the look at once, and so does the sun/moon
+      button by the lock. System follows the desktop. The choice survives a restart and shows
+      on the lock screen.
 
 ## 3. Organising
 
@@ -46,6 +49,8 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       empty space (top level). Drag a folder into another folder.
 - [ ] Right-click → **Move to…**, **Rename…**, **Duplicate**, **Delete** all work.
 - [ ] A folder can't be dragged or moved into itself or its own subfolder.
+- [ ] From a connection, folder, Credentials or Settings, **Home** (bottom left) or clicking the
+      Corestart Reach name returns to the start screen. With unsaved edits it asks first.
 - [ ] Search (Ctrl+F) finds by name, host and folder; Enter connects to the first result.
 - [ ] Saved credentials: create one, use it on two connections, change its password once,
       and both connections use the new one.

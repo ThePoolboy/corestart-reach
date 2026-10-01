@@ -13,6 +13,7 @@ First public test release.
   `known_hosts`
 - Quick connect to any host without saving it
 - Folders with drag and drop, right-click menus, search and keyboard shortcuts
+- Home button (and the Reach name in the sidebar) returns to the start screen
 - Auto-lock when idle (default 15 minutes) and changing the master password
 - Light and dark mode: follows the system, or pick one in Settings → Appearance or with the
   sun/moon button next to the lock button
