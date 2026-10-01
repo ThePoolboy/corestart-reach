@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "demo-vault": "cargo test --manifest-path src-tauri/Cargo.toml write_demo_vault -- --ignored --nocapture",
     "tauri": "tauri"
   },
   "devDependencies": {

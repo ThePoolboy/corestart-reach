@@ -23,6 +23,10 @@ mRemoteNG and Royal TS. Free and open source under GPL-3.0.
 Early development (v0.1), ready for testing. RDP and SSH each open in their own window.
 Planned: auto-update, import from mRemoteNG, tabs and embedded RDP.
 
+Tested on Windows 11, Fedora 44 Workstation, Fedora 44 KDE Plasma Desktop, Ubuntu Desktop
+26.04 and Linux Mint 22.3 Cinnamon. The Flatpak should also run on other Linux
+distributions.
+
 The vault **locks itself after 15 minutes without use** (change it or turn it off in
 Settings). Open RDP and SSH sessions keep running when it locks. The master password can be
 changed in Settings; the vault and its backup are re-encrypted with the new one.
@@ -44,7 +48,8 @@ to GitHub). Unzip it to get the file.
 
 - **Windows** shows "Windows protected your PC" the first time, because test builds aren't
   code-signed yet. Click **More info → Run anyway**.
-- **Linux:** Fedora has Flatpak and Flathub set up already. **Ubuntu** needs it once:
+- **Linux:** Fedora and Linux Mint have Flatpak and Flathub set up already. **Ubuntu** needs
+  it once:
   ```bash
   sudo apt install flatpak
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -116,6 +121,10 @@ npm run tauri build                        # Windows: setup.exe in src-tauri/tar
 npm run check                              # type-check the interface
 cd src-tauri && cargo clippy && cargo test # lint and test the Rust core
 ```
+
+For screenshots, `npm run demo-vault` creates a vault full of made-up connections (master
+password `demo-password`). It won't overwrite an existing vault, so move yours aside first.
+Set `REACH_DEMO_VAULT` to the vault path to fill another location, such as the Flatpak's.
 
 The Flatpak is built with flatpak-builder; see [flatpak/README.md](flatpak/README.md).
 

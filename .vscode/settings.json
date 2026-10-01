@@ -1,0 +1,21 @@
+{
+  // Build output is huge (src-tauri/target) and the Flatpak build dirs contain
+  // symlinks to /run. Following them sends VSCode's file scans outside the repo.
+  "search.followSymlinks": false,
+  "files.watcherExclude": {
+    "**/src-tauri/target/**": true,
+    "**/.flatpak-builder/**": true,
+    "**/build-flatpak/**": true,
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/src-tauri/target": true,
+    "**/.flatpak-builder": true,
+    "**/build-flatpak": true,
+    "**/dist": true
+  },
+  "files.exclude": {
+    "**/.flatpak-builder": true,
+    "**/build-flatpak": true
+  }
+}

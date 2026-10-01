@@ -1,8 +1,9 @@
 # Test checklist
 
-Run through this on each system: Windows 11, Fedora 44 GNOME, Fedora 44 KDE Plasma and
-Ubuntu 24.04 LTS. Note the system and the build (commit or version) with anything that fails,
-plus the exact error text or a screenshot.
+Run through this on each system: Windows 11, Fedora 44 Workstation (GNOME), Fedora 44 KDE
+Plasma Desktop, Ubuntu Desktop 26.04 LTS and Linux Mint 22.3 Cinnamon. Note the system and
+the build (commit or version) with anything that fails, plus the exact error text or a
+screenshot.
 
 Get the packages from the latest green run under **Actions → Build → Artifacts**
 (see the README's Install section).
@@ -11,8 +12,8 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 
 - [ ] **Windows:** run `Corestart-Reach_…_x64-setup.exe`. SmartScreen warns (unsigned test
       build): **More info → Run anyway**. Reach is in the Start menu.
-- [ ] **Fedora (GNOME and KDE):** `flatpak install --user ./corestart-reach.flatpak`. It downloads
-      the GNOME 51 runtime from Flathub the first time.
+- [ ] **Fedora (GNOME and KDE) and Linux Mint:** `flatpak install --user ./corestart-reach.flatpak`.
+      It downloads the GNOME 51 runtime from Flathub the first time.
 - [ ] **Ubuntu:** first `sudo apt install flatpak`, add Flathub
       (`flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`),
       log out and back in, then install the file as above.

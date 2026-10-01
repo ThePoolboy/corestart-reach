@@ -1,5 +1,6 @@
 /* Corestart Reach. Palette follows the Corestart brand (charcoal + signal blue).
-   Dark by default; light when the system asks for it. */
+   Dark by default; light when the main window sets data-theme="light" (see
+   lib/theme.svelte.ts, which follows the system unless you pick one). */
 :root {
   --bg: #1b1b1c;
   --bg-side: #222224;
@@ -31,28 +32,26 @@
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #ffffff;
-    --bg-side: #f4f5f7;
-    --bg-raised: #ffffff;
-    --bg-input: #ffffff;
-    --bg-hover: rgba(0, 0, 0, 0.045);
-    --bg-selected: rgba(35, 160, 243, 0.14);
-    --line: #e2e4e8;
-    --line-strong: #cfd2d8;
-    --text: #1d1f23;
-    --text-dim: #5b6068;
-    --text-faint: #8a8f97;
-    --accent: #1a8fdc;
-    --accent-hover: #1580c7;
-    --danger: #d93b37;
-    --danger-soft: rgba(217, 59, 55, 0.1);
-    --rdp: #1a8fdc;
-    --ssh: #2e9a63;
-    --shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
-    color-scheme: light;
-  }
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --bg-side: #f4f5f7;
+  --bg-raised: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.045);
+  --bg-selected: rgba(35, 160, 243, 0.14);
+  --line: #e2e4e8;
+  --line-strong: #cfd2d8;
+  --text: #1d1f23;
+  --text-dim: #5b6068;
+  --text-faint: #8a8f97;
+  --accent: #1a8fdc;
+  --accent-hover: #1580c7;
+  --danger: #d93b37;
+  --danger-soft: rgba(217, 59, 55, 0.1);
+  --rdp: #1a8fdc;
+  --ssh: #2e9a63;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+  color-scheme: light;
 }
 
 * {

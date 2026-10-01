@@ -14,6 +14,7 @@
     type Tree,
   } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
+  import { theme, toggleTheme } from '../lib/theme.svelte';
   import { toast, toastError } from '../lib/toast.svelte';
   import { isInside, searchRows, visibleRows, type Row } from '../lib/tree';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -510,6 +511,14 @@
     <div class="brand">
       <img src="/icon.svg" alt="" width="26" height="26" />
       <span>Corestart Reach</span>
+      <button
+        class="btn ghost icon"
+        title={theme.light ? 'Switch to dark mode' : 'Switch to light mode'}
+        aria-label={theme.light ? 'Switch to dark mode' : 'Switch to light mode'}
+        onclick={toggleTheme}
+      >
+        <Icon name={theme.light ? 'moon' : 'sun'} />
+      </button>
       <button class="btn ghost icon" title="Lock vault (Ctrl+L)" onclick={onlock}><Icon name="lock" /></button>
     </div>
 

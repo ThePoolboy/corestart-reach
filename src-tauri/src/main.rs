@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+#[cfg(test)]
+mod demo;
 mod error;
 mod model;
 mod rdp;
@@ -58,6 +60,21 @@ fn main() {
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         // SAFETY: first thing in main, before any other thread exists.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
+
+    // Linux Mint tells every GTK app to load its xapp module, which isn't inside
+    // the Flatpak, so GTK prints "Failed to load module". Harmless; skip it.
+    #[cfg(target_os = "linux")]
+    if let Ok(modules) = std::env::var("GTK_MODULES") {
+        let kept: Vec<&str> = modules.split(':').filter(|m| !m.is_empty() && *m != "xapp-gtk3-module").collect();
+        // SAFETY: still before any other thread exists.
+        unsafe {
+            if kept.is_empty() {
+                std::env::remove_var("GTK_MODULES");
+            } else {
+                std::env::set_var("GTK_MODULES", kept.join(":"));
+            }
+        }
     }
 
     tauri::Builder::default()

@@ -6,6 +6,7 @@
   import ethereumQr from '../../assets/donate/ethereum.png';
   import { api, errorText, type Tree } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
+  import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte';
   import { toast } from '../lib/toast.svelte';
 
   let { tree, onchange }: { tree: Tree; onchange: (t: Tree) => void } = $props();
@@ -18,6 +19,12 @@
     { minutes: 60, label: 'After 1 hour' },
     { minutes: 240, label: 'After 4 hours' },
     { minutes: 0, label: 'Never' },
+  ];
+
+  const THEMES: { choice: ThemeChoice; label: string }[] = [
+    { choice: 'system', label: 'System' },
+    { choice: 'light', label: 'Light' },
+    { choice: 'dark', label: 'Dark' },
   ];
 
   let version = $state('');
@@ -98,6 +105,28 @@
   </header>
 
   <div class="scroll">
+    <section>
+      <h2>Appearance</h2>
+      <div class="field">
+        <span id="theme-label">Theme</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="theme-label">
+          {#each THEMES as t (t.choice)}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={theme.choice === t.choice}
+              class:on={theme.choice === t.choice}
+              onclick={() => setTheme(t.choice)}>{t.label}</button
+            >
+          {/each}
+        </div>
+        <span class="hint">
+          System follows your desktop's light or dark setting. Saved on this computer, so the lock screen uses it
+          too. SSH windows stay dark.
+        </span>
+      </div>
+    </section>
+
     <section>
       <h2>Security</h2>
       <label class="field">
@@ -256,6 +285,9 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-faint);
+  }
+  .segmented {
+    align-self: flex-start;
   }
   .form {
     display: flex;
