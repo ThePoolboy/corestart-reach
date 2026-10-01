@@ -35,6 +35,8 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       why. An open SSH window keeps working.
 - [ ] Put the computer to sleep for longer than the auto-lock time: Reach is locked when it wakes.
 - [ ] Auto-lock "Never": it stays unlocked. The setting survives a restart.
+- [ ] Settings → **Source code on GitHub** and **Support on Ko-fi** open in the web browser
+      (in the Flatpak too). The copy buttons copy each address; **Show QR codes** shows both.
 
 ## 3. Organising
 

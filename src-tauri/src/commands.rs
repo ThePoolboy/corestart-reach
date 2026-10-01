@@ -427,6 +427,30 @@ pub async fn ssh_answer(
     Ok(())
 }
 
+/// Web pages the About section links to. The interface names one of these
+/// rather than passing a URL, so it can't open anything else.
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Link {
+    Source,
+    Kofi,
+}
+
+impl Link {
+    fn url(&self) -> &'static str {
+        match self {
+            Link::Source => "https://github.com/ThePoolboy/corestart-reach",
+            Link::Kofi => "https://ko-fi.com/thepoolboy",
+        }
+    }
+}
+
+/// Open a link in the default web browser (through the desktop portal in a Flatpak).
+#[tauri::command]
+pub fn open_link(link: Link) -> Result<()> {
+    open::that_detached(link.url()).map_err(|e| msg(format!("Couldn't open the web browser: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

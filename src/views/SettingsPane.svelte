@@ -1,6 +1,9 @@
 <script lang="ts">
   import { getVersion } from '@tauri-apps/api/app';
+  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { onMount } from 'svelte';
+  import bitcoinQr from '../../assets/donate/bitcoin.png';
+  import ethereumQr from '../../assets/donate/ethereum.png';
   import { api, errorText, type Tree } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
   import { toast } from '../lib/toast.svelte';
@@ -27,6 +30,30 @@
     try {
       onchange(await api.saveSettings({ ...tree.settings, autoLockMinutes: minutes }));
       toast(minutes ? 'Auto-lock updated.' : 'Auto-lock turned off.');
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  // ---- about and support ----
+  const WALLETS = [
+    { name: 'Bitcoin (BTC)', address: 'bc1qrwfpl77k7zfgrea8suv78cxn8wp3lvn3mjumz0', qr: bitcoinQr },
+    { name: 'Ethereum (ETH)', address: '0xB968531aa4f6EaE2c2c479B56b111c8B3B5c6C54', qr: ethereumQr },
+  ];
+  let showQr = $state(false);
+
+  async function openLink(link: 'source' | 'kofi') {
+    try {
+      await api.openLink(link);
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  async function copyAddress(name: string, address: string) {
+    try {
+      await writeText(address);
+      toast(`${name} address copied.`);
     } catch (err) {
       toast(errorText(err), 'error');
     }
@@ -135,9 +162,48 @@
     <section>
       <h2>About</h2>
       <p class="about">
-        Corestart Reach{version ? ` ${version}` : ''} · Free software under the GPL-3.0 license.<br />
-        Source code: github.com/ThePoolboy/corestart-reach
+        Corestart Reach{version ? ` ${version}` : ''} · Free software under the GPL-3.0 license.
       </p>
+      <div class="buttons">
+        <button type="button" class="btn" onclick={() => openLink('source')}>Source code on GitHub</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Support Reach</h2>
+      <p class="about">
+        Reach is free and always will be. If it saves you time, you can help keep it going. Donations are optional
+        and don't unlock anything.
+      </p>
+      <div class="buttons">
+        <button type="button" class="btn" onclick={() => openLink('kofi')}>Support on Ko-fi</button>
+      </div>
+      <div class="wallets">
+        {#each WALLETS as w (w.name)}
+          <div class="wallet">
+            <span class="wallet-name">{w.name}</span>
+            <code class="address">{w.address}</code>
+            <button
+              type="button"
+              class="btn icon"
+              title="Copy {w.name} address"
+              aria-label="Copy {w.name} address"
+              onclick={() => copyAddress(w.name, w.address)}
+            >
+              <Icon name="copy" size={16} />
+            </button>
+            {#if showQr}
+              <img class="qr" src={w.qr} alt="{w.name} QR code" width="140" height="140" />
+            {/if}
+          </div>
+        {/each}
+      </div>
+      <div class="buttons">
+        <button type="button" class="btn ghost" onclick={() => (showQr = !showQr)}>
+          {showQr ? 'Hide QR codes' : 'Show QR codes'}
+        </button>
+      </div>
+      <p class="hint">Check the address in your wallet before sending. Crypto payments can't be reversed.</p>
     </section>
   </div>
 </div>
@@ -217,5 +283,32 @@
     color: var(--text-dim);
     user-select: text;
     -webkit-user-select: text;
+  }
+  .wallets {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .wallet {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 8px;
+  }
+  .wallet-name {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .address {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+    user-select: all;
+    -webkit-user-select: all;
+  }
+  .qr {
+    grid-column: 2;
+    border-radius: var(--radius-sm);
   }
 </style>

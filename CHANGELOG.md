@@ -14,4 +14,6 @@ First public test release.
 - Quick connect to any host without saving it
 - Folders with drag and drop, right-click menus, search and keyboard shortcuts
 - Auto-lock when idle (default 15 minutes) and changing the master password
+- Settings → About links to the source code, and an optional Support Reach section
+  (Ko-fi, Bitcoin and Ethereum)
 - Flatpak for Linux, installer for Windows

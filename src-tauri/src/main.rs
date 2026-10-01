@@ -119,6 +119,7 @@ fn main() {
             commands::ssh_write,
             commands::ssh_resize,
             commands::ssh_answer,
+            commands::open_link,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Corestart Reach");

@@ -148,6 +148,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github
+
       - uses: actions/download-artifact@v8
         with:
           path: downloads
@@ -160,6 +164,10 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           mv downloads/corestart-reach.flatpak "downloads/Corestart-Reach_${version}_x86_64.flatpak"
           ls -l downloads
+          # GitHub's generated notes, then the "Support Reach" footer.
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" \
+            --jq .body > notes.md
+          cat .github/release-support.md >> notes.md
           gh release create "$GITHUB_REF_NAME" downloads/* \
             --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
-            --title "Corestart Reach $version" --generate-notes
+            --title "Corestart Reach $version" --notes-file notes.md

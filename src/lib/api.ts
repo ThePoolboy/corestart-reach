@@ -149,6 +149,9 @@ export const api = {
     invoke<void>('ssh_resize', { session, cols, rows }),
   sshAnswer: (session: string, answer: SshAnswer) =>
     invoke<void>('ssh_answer', { session, answer }),
+
+  /** Open one of the About section's web pages in the browser. */
+  openLink: (link: 'source' | 'kofi') => invoke<void>('open_link', { link }),
 };
 
 /** Errors from Rust arrive as plain strings. */
