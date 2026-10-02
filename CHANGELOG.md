@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows: the installer can install Reach for everyone on the computer (as an admin), or
+  just for you as before. Silent install for everyone: `/S /AllUsers`
 - Linux: Reach's own Flatpak repository at
   [thepoolboy.github.io/corestart-reach](https://thepoolboy.github.io/corestart-reach/).
   Installing from there, or from a release's `.flatpak` file, gets updates through the

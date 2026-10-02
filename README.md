@@ -51,12 +51,15 @@ included). Both keep themselves up to date.
 
 | System | Install |
 | --- | --- |
-| Windows 10 / 11 | Download `Corestart-Reach_<version>_x64-setup.exe` from the [**latest release**](https://github.com/ThePoolboy/corestart-reach/releases/latest) and run it. No admin rights needed. |
+| Windows 10 / 11 | Download `Corestart-Reach_<version>_x64-setup.exe` from the [**latest release**](https://github.com/ThePoolboy/corestart-reach/releases/latest) and run it. Install it just for you (no admin rights needed) or, as an admin, for everyone on the computer. |
 | Linux | Open **[thepoolboy.github.io/corestart-reach](https://thepoolboy.github.io/corestart-reach/)** and click **Install**, or run `flatpak install --user https://thepoolboy.github.io/corestart-reach/corestart-reach.flatpakref` |
 
 - **Windows** shows "Windows protected your PC" the first time, because Reach isn't
   code-signed yet. Click **More info → Run anyway**. After that Reach updates itself (see
   [Updates](#updates)).
+- **Everyone on a Windows computer:** choose "Anyone who uses this computer" in the installer, or
+  install silently from an admin command prompt with `Corestart-Reach_<version>_x64-setup.exe /S /AllUsers`.
+  Each user still has their own vault. Updates then need an admin's approval.
 - **Linux:** the `.flatpak` file on each release installs the same way
   (`flatpak install --user ./Corestart-Reach_<version>_x86_64.flatpak`) and also receives
   updates, from version 0.1.1 on. Fedora and Linux Mint have Flatpak and Flathub set up
