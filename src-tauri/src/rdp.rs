@@ -36,6 +36,78 @@ fn address(c: &Resolved) -> String {
     }
 }
 
+/// The mstsc settings that make the remote desktop follow its window: change the
+/// remote resolution when the window is resized, instead of stretching the picture
+/// (smart sizing) or adding scroll bars.
+#[cfg_attr(not(windows), allow(dead_code))]
+const FOLLOW_WINDOW: &[(&str, &str)] = &[("dynamic resolution:i:", "1"), ("smart sizing:i:", "0")];
+
+/// mstsc's `Default.rdp` with [`FOLLOW_WINDOW`] set, or `None` if it already is.
+/// mstsc saves the file as UTF-16 with a byte order mark; it's written back the
+/// same way it was read.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn follow_window(file: &[u8]) -> Option<Vec<u8>> {
+    let utf16 = file.starts_with(&[0xFF, 0xFE]);
+    let text = if utf16 {
+        let units: Vec<u16> = file[2..].chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
+        String::from_utf16_lossy(&units)
+    } else {
+        String::from_utf8_lossy(file.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(file)).into_owned()
+    };
+
+    let mut out = String::with_capacity(text.len() + 64);
+    let mut missing = FOLLOW_WINDOW.to_vec();
+    for line in text.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\r', '\n']);
+        match FOLLOW_WINDOW.iter().find(|(key, _)| body.starts_with(key)) {
+            Some((key, value)) => {
+                missing.retain(|(k, _)| k != key);
+                out.push_str(key);
+                out.push_str(value);
+                out.push_str(&line[body.len()..]);
+            }
+            None => out.push_str(line),
+        }
+    }
+    for (key, value) in missing {
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push_str("\r\n");
+        }
+        out.push_str(&format!("{key}{value}\r\n"));
+    }
+    if out == text {
+        return None;
+    }
+
+    Some(if utf16 {
+        [0xFF, 0xFE].into_iter().chain(out.encode_utf16().flat_map(u16::to_le_bytes)).collect()
+    } else {
+        out.into_bytes()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::follow_window;
+
+    #[test]
+    fn default_rdp_is_made_to_follow_the_window() {
+        let utf16 = |s: &str| -> Vec<u8> {
+            [0xFF, 0xFE].into_iter().chain(s.encode_utf16().flat_map(u16::to_le_bytes)).collect()
+        };
+        let before = "screen mode id:i:1\r\nsmart sizing:i:1\r\ndynamic resolution:i:0\r\nfull address:s:web1\r\n";
+        let after = "screen mode id:i:1\r\nsmart sizing:i:0\r\ndynamic resolution:i:1\r\nfull address:s:web1\r\n";
+        assert_eq!(follow_window(&utf16(before)), Some(utf16(after)));
+        assert_eq!(follow_window(&utf16(after)), None);
+
+        // Missing settings are added; plain UTF-8 stays UTF-8.
+        assert_eq!(
+            follow_window(b"full address:s:web1").as_deref(),
+            Some(&b"full address:s:web1\r\ndynamic resolution:i:1\r\nsmart sizing:i:0\r\n"[..])
+        );
+    }
+}
+
 #[cfg(not(windows))]
 pub use linux::launch;
 #[cfg(windows)]
@@ -280,13 +352,18 @@ mod linux {
 
 #[cfg(windows)]
 mod windows_impl {
+    use std::fs::OpenOptions;
+    use std::io::Write;
     use std::os::windows::process::CommandExt;
+    use std::path::PathBuf;
     use std::process::Command;
 
     use tauri::AppHandle;
     use windows::Win32::Security::Credentials::{
         CRED_PERSIST_SESSION, CRED_TYPE_GENERIC, CREDENTIALW, CredWriteW,
     };
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::{FOLDERID_Documents, KNOWN_FOLDER_FLAG, SHGetKnownFolderPath};
     use windows::core::PWSTR;
 
     use super::{Result, Resolved, address};
@@ -334,7 +411,40 @@ mod windows_impl {
         args
     }
 
+    /// mstsc's `Documents\Default.rdp`, where it keeps the settings it uses for
+    /// `/v` connections. Documents may be redirected (OneDrive), so ask Windows.
+    fn default_rdp() -> Option<PathBuf> {
+        // SAFETY: the returned string is copied, then freed exactly once.
+        unsafe {
+            let path = SHGetKnownFolderPath(&FOLDERID_Documents, KNOWN_FOLDER_FLAG(0), None).ok()?;
+            let documents = path.to_string();
+            CoTaskMemFree(Some(path.0 as *const _));
+            Some(PathBuf::from(documents.ok()?).join("Default.rdp"))
+        }
+    }
+
+    /// Make the remote desktop resize with the mstsc window. There's no switch for
+    /// it, so it's set in `Default.rdp`, the file mstsc takes `/v` connections'
+    /// settings from. No file means mstsc's defaults, which already resize.
+    fn follow_window() -> std::io::Result<()> {
+        let Some(file) = default_rdp() else { return Ok(()) };
+        let old = match std::fs::read(&file) {
+            Ok(old) => old,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        let Some(new) = super::follow_window(&old) else { return Ok(()) };
+        // Rewrite the file in place: Windows refuses to replace a hidden file, and
+        // mstsc hides this one.
+        let mut f = OpenOptions::new().write(true).open(&file)?;
+        f.write_all(&new)?;
+        f.set_len(new.len() as u64)
+    }
+
     pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
+        // Not worth failing the connection over: at worst the window doesn't resize.
+        let _ = follow_window();
+
         let user = match c.separate_domain() {
             Some(domain) if !c.username.is_empty() => format!("{domain}\\{}", c.username),
             _ => c.username.clone(),

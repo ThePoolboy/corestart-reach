@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Windows: an RDP window always resizes the remote desktop to fit when you resize it, even
+  if mstsc's own settings (`Documents\Default.rdp`) had dynamic resolution off or smart
+  sizing on. Reach turns those two settings back on before it starts mstsc
+
 ## 0.1.1 (2026-10-02)
 
 - Windows: the installer can install Reach for everyone on the computer (as an admin), or
