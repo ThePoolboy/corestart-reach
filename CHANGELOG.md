@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (2026-10-02)
 
 - Windows: an RDP window always resizes the remote desktop to fit when you resize it, even
   if mstsc's own settings (`Documents\Default.rdp`) had dynamic resolution off or smart

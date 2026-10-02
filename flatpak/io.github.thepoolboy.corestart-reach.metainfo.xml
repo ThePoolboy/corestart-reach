@@ -94,6 +94,11 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.1.2" date="2026-10-02">
+      <description>
+        <p>Windows: RDP windows resize the remote desktop to fit when you resize them.</p>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-10-02">
       <description>
         <p>Updates through the software center from Reach's own Flatpak repository, and a Windows installer that can install for everyone on the computer.</p>
