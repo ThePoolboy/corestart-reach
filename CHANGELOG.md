@@ -2,9 +2,8 @@
 
 ## Unreleased
 
-- Windows: an RDP window no longer opens taller than the screen on laptops with display
-  scaling (125%, 150%…) or with a bigger second monitor. It now starts at 80% of the
-  smallest screen, after scaling
+- Windows: Reach no longer changes mstsc's `Documents\Default.rdp` before connecting (undoes
+  the 0.1.2 change); RDP window sizing is being reworked
 
 ## 0.1.2 (2026-10-02)
 
