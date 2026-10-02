@@ -17,6 +17,7 @@
   import { theme, toggleTheme } from '../lib/theme.svelte';
   import { toast, toastError } from '../lib/toast.svelte';
   import { isInside, searchRows, visibleRows, type Row } from '../lib/tree';
+  import { autoCheck, installUpdate } from '../lib/update.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
   import MoveDialog from './MoveDialog.svelte';
@@ -27,6 +28,7 @@
   import NameDialog from './NameDialog.svelte';
   import QuickConnect from './QuickConnect.svelte';
   import SettingsPane from './SettingsPane.svelte';
+  import UpdateBanner from './UpdateBanner.svelte';
 
   let { tree, onchange, onlock }: { tree: Tree; onchange: (t: Tree) => void; onlock: () => void } =
     $props();
@@ -113,6 +115,37 @@
       unlisten.then((f) => f());
     };
   });
+
+  // Look for a new version now and then (at most every 12 hours) while unlocked.
+  onMount(() => {
+    const check = () => {
+      if (tree.settings.checkForUpdates) autoCheck();
+    };
+    check();
+    const timer = setInterval(check, 60 * 60 * 1000);
+    return () => clearInterval(timer);
+  });
+
+  /** Installing restarts Reach, which closes SSH windows and drops unsaved edits. */
+  async function update() {
+    const ssh = await api.sshWindowCount().catch(() => 0);
+    const losses = [
+      ssh ? `close ${ssh === 1 ? 'the open SSH window' : `${ssh} open SSH windows`}` : '',
+      dirty ? 'discard your unsaved changes' : '',
+    ].filter(Boolean);
+    const start = () => installUpdate().catch(toastError);
+    if (!losses.length) return start();
+    dialog = {
+      kind: 'confirm',
+      title: 'Update and restart?',
+      message: `Restarting Reach will ${losses.join(' and ')}. RDP sessions keep running.`,
+      label: 'Update and restart',
+      run: () => {
+        dirty = false;
+        start();
+      },
+    };
+  }
 
   // ---- navigation -------------------------------------------------------
 
@@ -647,77 +680,80 @@
   </aside>
 
   <main>
-    {#key `${view.kind}:${'id' in view ? view.id : ''}:${revision}`}
-      {#if view.kind === 'connection' && selectedConnection}
-        <ConnectionEditor
-          {tree}
-          connection={selectedConnection}
-          defaults={{ protocol: selectedConnection.protocol, folderId: selectedConnection.folderId }}
-          ondirty={(d) => (dirty = d)}
-          onsaved={(s) => applySaved(s, { kind: 'connection', id: s.id })}
-          onconnect={(id) => connect(id)}
-          onduplicate={duplicate}
-          ondelete={confirmDeleteConnection}
-          oncancel={() => go({ kind: 'home' })}
-        />
-      {:else if view.kind === 'new'}
-        <ConnectionEditor
-          {tree}
-          connection={null}
-          defaults={{ protocol: view.protocol, folderId: view.folderId }}
-          ondirty={(d) => (dirty = d)}
-          onsaved={(s) => {
-            reveal(s.tree.connections.find((c) => c.id === s.id)?.folderId ?? null);
-            applySaved(s, { kind: 'connection', id: s.id });
-          }}
-          onconnect={(id) => connect(id)}
-          onduplicate={duplicate}
-          ondelete={confirmDeleteConnection}
-          oncancel={() => {
-            dirty = false;
-            go({ kind: 'home' });
-          }}
-        />
-      {:else if view.kind === 'folder' && selectedFolder}
-        <FolderPane
-          {tree}
-          folder={selectedFolder}
-          ondirty={(d) => (dirty = d)}
-          onsaved={(s) => applySaved(s, { kind: 'folder', id: s.id })}
-          ondelete={confirmDeleteFolder}
-          onnew={(protocol, folderId) => newConnection(protocol, folderId)}
-          onnewfolder={(parentId) => askNewFolder(parentId)}
-        />
-      {:else if view.kind === 'credentials'}
-        <CredentialsPane
-          {tree}
-          selected={view.id}
-          ondirty={(d) => (dirty = d)}
-          onselect={(id) => go({ kind: 'credentials', id })}
-          onsaved={(s) => applySaved(s, { kind: 'credentials', id: s.id })}
-          ondelete={confirmDeleteCredential}
-        />
-      {:else if view.kind === 'settings'}
-        <SettingsPane {tree} {onchange} />
-      {:else}
-        <div class="home">
-          <img src="/icon.svg" alt="" width="84" height="84" />
-          <h1>Corestart Reach</h1>
-          <p>
-            {tree.connections.length} connection{tree.connections.length === 1 ? '' : 's'}
-            in {tree.folders.length} folder{tree.folders.length === 1 ? '' : 's'}.
-            Double-click a connection to open it.
-          </p>
-          <div class="home-actions">
-            <button class="btn primary" onclick={() => openQuickConnect()}><Icon name="bolt" /> Quick connect</button>
-            <button class="btn" onclick={() => newConnection('rdp')}><Icon name="monitor" /> New RDP connection</button>
-            <button class="btn" onclick={() => newConnection('ssh')}><Icon name="terminal" /> New SSH connection</button>
-            <button class="btn" onclick={() => askNewFolder()}><Icon name="folder" /> New folder</button>
+    <UpdateBanner onupdate={update} />
+    <div class="view">
+      {#key `${view.kind}:${'id' in view ? view.id : ''}:${revision}`}
+        {#if view.kind === 'connection' && selectedConnection}
+          <ConnectionEditor
+            {tree}
+            connection={selectedConnection}
+            defaults={{ protocol: selectedConnection.protocol, folderId: selectedConnection.folderId }}
+            ondirty={(d) => (dirty = d)}
+            onsaved={(s) => applySaved(s, { kind: 'connection', id: s.id })}
+            onconnect={(id) => connect(id)}
+            onduplicate={duplicate}
+            ondelete={confirmDeleteConnection}
+            oncancel={() => go({ kind: 'home' })}
+          />
+        {:else if view.kind === 'new'}
+          <ConnectionEditor
+            {tree}
+            connection={null}
+            defaults={{ protocol: view.protocol, folderId: view.folderId }}
+            ondirty={(d) => (dirty = d)}
+            onsaved={(s) => {
+              reveal(s.tree.connections.find((c) => c.id === s.id)?.folderId ?? null);
+              applySaved(s, { kind: 'connection', id: s.id });
+            }}
+            onconnect={(id) => connect(id)}
+            onduplicate={duplicate}
+            ondelete={confirmDeleteConnection}
+            oncancel={() => {
+              dirty = false;
+              go({ kind: 'home' });
+            }}
+          />
+        {:else if view.kind === 'folder' && selectedFolder}
+          <FolderPane
+            {tree}
+            folder={selectedFolder}
+            ondirty={(d) => (dirty = d)}
+            onsaved={(s) => applySaved(s, { kind: 'folder', id: s.id })}
+            ondelete={confirmDeleteFolder}
+            onnew={(protocol, folderId) => newConnection(protocol, folderId)}
+            onnewfolder={(parentId) => askNewFolder(parentId)}
+          />
+        {:else if view.kind === 'credentials'}
+          <CredentialsPane
+            {tree}
+            selected={view.id}
+            ondirty={(d) => (dirty = d)}
+            onselect={(id) => go({ kind: 'credentials', id })}
+            onsaved={(s) => applySaved(s, { kind: 'credentials', id: s.id })}
+            ondelete={confirmDeleteCredential}
+          />
+        {:else if view.kind === 'settings'}
+          <SettingsPane {tree} {onchange} />
+        {:else}
+          <div class="home">
+            <img src="/icon.svg" alt="" width="84" height="84" />
+            <h1>Corestart Reach</h1>
+            <p>
+              {tree.connections.length} connection{tree.connections.length === 1 ? '' : 's'}
+              in {tree.folders.length} folder{tree.folders.length === 1 ? '' : 's'}.
+              Double-click a connection to open it.
+            </p>
+            <div class="home-actions">
+              <button class="btn primary" onclick={() => openQuickConnect()}><Icon name="bolt" /> Quick connect</button>
+              <button class="btn" onclick={() => newConnection('rdp')}><Icon name="monitor" /> New RDP connection</button>
+              <button class="btn" onclick={() => newConnection('ssh')}><Icon name="terminal" /> New SSH connection</button>
+              <button class="btn" onclick={() => askNewFolder()}><Icon name="folder" /> New folder</button>
+            </div>
+            <p class="keys">Ctrl+K quick connect · Ctrl+N new connection · Ctrl+F search · Ctrl+L lock</p>
           </div>
-          <p class="keys">Ctrl+K quick connect · Ctrl+N new connection · Ctrl+F search · Ctrl+L lock</p>
-        </div>
-      {/if}
-    {/key}
+        {/if}
+      {/key}
+    </div>
   </main>
 </div>
 
@@ -988,6 +1024,12 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .view {
+    flex: 1;
+    min-height: 0;
   }
   .home {
     height: 100%;

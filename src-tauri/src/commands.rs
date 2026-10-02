@@ -434,6 +434,7 @@ pub async fn ssh_answer(
 pub enum Link {
     Source,
     Kofi,
+    Releases,
 }
 
 impl Link {
@@ -441,6 +442,7 @@ impl Link {
         match self {
             Link::Source => "https://github.com/ThePoolboy/corestart-reach",
             Link::Kofi => "https://ko-fi.com/thepoolboy",
+            Link::Releases => "https://github.com/ThePoolboy/corestart-reach/releases/latest",
         }
     }
 }

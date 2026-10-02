@@ -33,7 +33,9 @@ tauri-build = { version = "2.7.0", features = [] }
 [target.'cfg(target_os = "linux")'.dependencies]
 glib = "0.18"
 
+# Self-update from GitHub Releases. Windows only: the Flatpak updates through Flathub.
 [target."cfg(windows)".dependencies]
+tauri-plugin-updater = "2"
 windows = { version = "0.62.2", features = ["Win32_Security_Credentials", "Win32_Foundation"] }
 
 # Argon2 is painfully slow unoptimised; keep unlocking fast in dev builds too.

@@ -28,11 +28,14 @@ pub struct VaultData {
 pub struct Settings {
     /// Lock the vault after this many minutes without using Reach. 0 = never.
     pub auto_lock_minutes: u32,
+    /// Look for a new version after unlocking and every 12 hours (Windows only;
+    /// Flathub updates the Flatpak).
+    pub check_for_updates: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { auto_lock_minutes: 15 }
+        Self { auto_lock_minutes: 15, check_for_updates: true }
     }
 }
 
@@ -592,6 +595,12 @@ mod tests {
             rdp_screen: RdpScreen::Window,
             notes: String::new(),
         }
+    }
+
+    #[test]
+    fn older_vaults_get_update_checks_on() {
+        let settings: Settings = serde_json::from_str(r#"{"autoLockMinutes":5}"#).unwrap();
+        assert_eq!(settings, Settings { auto_lock_minutes: 5, check_for_updates: true });
     }
 
     #[test]

@@ -38,6 +38,8 @@ export interface Credential {
 export interface Settings {
   /** Lock after this many minutes without using Reach; 0 = never. */
   autoLockMinutes: number;
+  /** Look for a new version after unlocking and every 12 hours (Windows only). */
+  checkForUpdates: boolean;
 }
 
 export interface Tree {
@@ -110,6 +112,11 @@ export type SshAnswer =
   | { type: 'hostKey'; accept: boolean }
   | { type: 'prompt'; value: string | null };
 
+/** A newer published version of Reach. */
+export interface UpdateInfo {
+  version: string;
+}
+
 export const api = {
   vaultStatus: () => invoke<VaultStatus>('vault_status'),
   vaultCreate: (password: string) => invoke<Tree>('vault_create', { password }),
@@ -150,8 +157,16 @@ export const api = {
   sshAnswer: (session: string, answer: SshAnswer) =>
     invoke<void>('ssh_answer', { session, answer }),
 
-  /** Open one of the About section's web pages in the browser. */
-  openLink: (link: 'source' | 'kofi') => invoke<void>('open_link', { link }),
+  /** Open one of Reach's web pages in the browser. */
+  openLink: (link: 'source' | 'kofi' | 'releases') => invoke<void>('open_link', { link }),
+
+  /** False on Linux, where Flathub updates Reach. */
+  updateSupported: () => invoke<boolean>('update_supported'),
+  /** Null when this is the latest version. */
+  updateCheck: () => invoke<UpdateInfo | null>('update_check'),
+  /** Downloads and starts the installer; on success Reach exits and restarts. */
+  updateInstall: () => invoke<void>('update_install'),
+  sshWindowCount: () => invoke<number>('ssh_window_count'),
 };
 
 /** Errors from Rust arrive as plain strings. */

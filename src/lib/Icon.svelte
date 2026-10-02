@@ -11,6 +11,7 @@
     plus: 'M12 5v14M5 12h14',
     search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4',
     play: 'M8 5l11 7-11 7z',
+    download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
     copy: 'M9 9h10v10H9zM5 15V5h10',
     trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
     x: 'M6 6l12 12M18 6L6 18',

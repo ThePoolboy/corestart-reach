@@ -4,8 +4,12 @@
 # Both are attached to each run under "Artifacts" (kept 30 days).
 #
 # Pushing a version tag (git tag v0.1.0 && git push origin v0.1.0) also creates
-# a DRAFT GitHub Release with both files attached. Nothing is public until you
-# open the draft on GitHub and press Publish.
+# a DRAFT GitHub Release with both files attached, plus latest.json for Reach's
+# Windows updater. Nothing is public until you open the draft on GitHub and
+# press Publish; Windows copies of Reach find the update from that moment on.
+#
+# Tag builds need two repository secrets for the updater signature:
+# TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
 name: Build
 
 on:
@@ -116,10 +120,34 @@ jobs:
           for f in *.exe; do [[ "$f" == *" "* ]] && mv "$f" "${f// /-}"; done
           ls -l
 
+      # Code signing (SignPath) goes here, before the updater signature, so that
+      # signature covers the final file.
+
+      # Reach's updater only installs a setup.exe signed with the project's
+      # updater key, bound to this version so an old release can't pose as new.
+      - name: Sign for the updater
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret isn't set."; exit 1
+          fi
+          if [ -z "$(jq -r .plugins.updater.pubkey src-tauri/tauri.conf.json)" ]; then
+            echo "::error::plugins.updater.pubkey in tauri.conf.json is empty."; exit 1
+          fi
+          for f in src-tauri/target/release/bundle/nsis/*-setup.exe; do
+            npx tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "$f"
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: corestart-reach-windows
-          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*-setup.exe.sig
           if-no-files-found: error
           retention-days: 30
 
@@ -163,6 +191,18 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           mv downloads/corestart-reach.flatpak "downloads/Corestart-Reach_${version}_x86_64.flatpak"
+
+          # latest.json tells Windows copies of Reach about this version. The
+          # signature goes inside it, so the .sig file itself isn't attached.
+          exe=$(ls downloads/*-setup.exe)
+          jq -n \
+            --arg version "$version" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg signature "$(cat "$exe.sig")" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$(basename "$exe")" \
+            '{version: $version, pub_date: $date,
+              platforms: {"windows-x86_64": {signature: $signature, url: $url}}}' > downloads/latest.json
+          rm downloads/*.sig
           ls -l downloads
           # GitHub's generated notes, then the "Support Reach" footer.
           gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" \

@@ -8,6 +8,7 @@ mod error;
 mod model;
 mod rdp;
 mod ssh;
+mod update;
 mod vault;
 
 use tauri::{AppHandle, Emitter, Manager, PhysicalSize, WebviewWindow, WebviewWindowBuilder, WindowEvent};
@@ -83,7 +84,13 @@ fn main() {
     #[cfg(target_os = "linux")]
     glib::set_prgname(Some("io.github.thepoolboy.corestart-reach"));
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(windows)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::Pending::default());
+
+    builder
         // One copy of Reach at a time: two copies saving the same vault would
         // overwrite each other's changes. Starting it again brings this one forward.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
@@ -143,6 +150,10 @@ fn main() {
             commands::ssh_resize,
             commands::ssh_answer,
             commands::open_link,
+            update::update_supported,
+            update::update_check,
+            update::update_install,
+            update::ssh_window_count,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Corestart Reach");

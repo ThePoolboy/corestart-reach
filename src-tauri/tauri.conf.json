@@ -47,5 +47,13 @@
     "windows": {
       "nsis": { "installMode": "currentUser" }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM2RDJFOEUyOUY4QzBCN0YKUldSL0M0eWY0dWpTTnBxakp2czZ3cnpQUzFqdEZOa3M3MFBQTHdqZ0t1QmFuSkU3Um12YUNnYUsK",
+      "endpoints": ["https://github.com/ThePoolboy/corestart-reach/releases/latest/download/latest.json"],
+      "requireSignedVersion": true,
+      "windows": { "installMode": "passive" }
+    }
   }
 }

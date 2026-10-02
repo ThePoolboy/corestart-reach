@@ -34,7 +34,7 @@ mRemoteNG and Royal TS. Free and open source under GPL-3.0.
 ## Status
 
 Early development (v0.1), ready for testing. RDP and SSH each open in their own window.
-Planned: auto-update, import from mRemoteNG, tabs and embedded RDP.
+Planned: import from mRemoteNG, tabs and embedded RDP.
 
 Tested on Windows 11, Fedora 44 Workstation, Fedora 44 KDE Plasma Desktop, Ubuntu Desktop
 26.04 and Linux Mint 22.3 Cinnamon. The Flatpak should also run on other Linux
@@ -94,10 +94,21 @@ for mstsc (what `cmdkey` does), and Windows clears it when you sign out.
 opened.
 
 Reach sends nothing anywhere except the RDP and SSH connections you open: no telemetry, no
-accounts. To report a security problem privately, see [SECURITY.md](SECURITY.md). Changes
+accounts. The one exception is the update check on Windows (see [Updates](#updates)). To report a security problem privately, see [SECURITY.md](SECURITY.md). Changes
 in each version are in [CHANGELOG.md](CHANGELOG.md).
 
 Only one copy of Reach runs at a time; starting it again brings the open one forward.
+
+## Updates
+
+- **Windows:** Reach checks GitHub for a new version after you unlock it and every 12 hours.
+  When there is one, a bar at the top offers **Update and restart**. Nothing is installed
+  until you click it. The check downloads a small `latest.json` file from this repository's
+  newest release and sends nothing about you or your vault. Turn it off in
+  **Settings → Updates**, or check by hand with **Check now**. Reach only installs an update
+  carrying the project's updater signature.
+- **Linux:** the Flatpak is updated by your software center (Discover, GNOME Software) or
+  `flatpak update`, through Flathub. Reach doesn't check for updates itself.
 
 ## Keyboard shortcuts
 
@@ -159,6 +170,7 @@ src-tauri/                  Rust core (Tauri 2)
   src/rdp.rs                launch FreeRDP / mstsc
   src/ssh.rs                SSH sessions (russh)
   src/commands.rs           commands the interface calls
+  src/update.rs             Windows self-update from GitHub Releases
 flatpak/                    Flatpak recipe, app menu entry and store listing
 ```
 
@@ -192,6 +204,30 @@ you time, you can help keep it going. Donations are optional and don't unlock an
 
 The same links are in Reach under **Settings → Support Reach**. Starring the repository,
 reporting bugs and telling others about Reach help too.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+Only the Windows downloads on the [Releases](https://github.com/ThePoolboy/corestart-reach/releases)
+page are signed: the installer and the Reach program inside it. They are built by
+GitHub Actions from the tagged commit in this repository, and nothing built anywhere else
+is signed. Test builds from the Actions tab aren't signed.
+
+| Role | Members |
+| --- | --- |
+| Committers and reviewers | [ThePoolboy](https://github.com/ThePoolboy) |
+| Approvers | [ThePoolboy](https://github.com/ThePoolboy) |
+
+Committers can change the source directly. Changes from anyone else are reviewed by a
+reviewer before they're merged. An approver checks and approves every signing request.
+
+**Privacy:** This program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or operating it. The
+only connections Reach makes are the RDP and SSH sessions you open; on Windows, the update
+check described under [Updates](#updates), which can be turned off in Settings; and the
+Support Reach links, which open in your browser only when you click them.
 
 ## License
 

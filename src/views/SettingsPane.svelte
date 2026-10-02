@@ -8,6 +8,7 @@
   import Icon from '../lib/Icon.svelte';
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte';
   import { toast } from '../lib/toast.svelte';
+  import { checkForUpdate, updates } from '../lib/update.svelte';
 
   let { tree, onchange }: { tree: Tree; onchange: (t: Tree) => void } = $props();
 
@@ -37,6 +38,24 @@
     try {
       onchange(await api.saveSettings({ ...tree.settings, autoLockMinutes: minutes }));
       toast(minutes ? 'Auto-lock updated.' : 'Auto-lock turned off.');
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  // ---- updates ----
+  async function setCheckForUpdates(on: boolean) {
+    try {
+      onchange(await api.saveSettings({ ...tree.settings, checkForUpdates: on }));
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  async function checkNow() {
+    try {
+      const found = await checkForUpdate();
+      toast(found ? `Corestart Reach ${found.version} is available.` : "You're on the latest version.");
     } catch (err) {
       toast(errorText(err), 'error');
     }
@@ -144,6 +163,37 @@
           sessions keep running when it locks.
         </span>
       </label>
+    </section>
+
+    <section>
+      <h2>Updates</h2>
+      {#if updates.supported}
+        <div class="field">
+          <span id="updates-label">Check for updates</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="updates-label">
+            {#each [true, false] as on (on)}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={tree.settings.checkForUpdates === on}
+                class:on={tree.settings.checkForUpdates === on}
+                onclick={() => setCheckForUpdates(on)}>{on ? 'Automatically' : 'Only when I ask'}</button
+              >
+            {/each}
+          </div>
+          <span class="hint">
+            Reach asks GitHub whether a new version is out after you unlock it and every 12 hours. Nothing about you
+            or your vault is sent. Updates are only installed when you choose to.
+          </span>
+        </div>
+        <div class="buttons">
+          <button type="button" class="btn" disabled={updates.checking} onclick={checkNow}>
+            {updates.checking ? 'Checking…' : 'Check now'}
+          </button>
+        </div>
+      {:else}
+        <p class="about">Your software center installs updates for Reach from Flathub.</p>
+      {/if}
     </section>
 
     <section>

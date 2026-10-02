@@ -20,3 +20,6 @@ First public test release.
 - Settings → About links to the source code, and an optional Support Reach section
   (Ko-fi, Bitcoin and Ethereum)
 - Flatpak for Linux, installer for Windows
+- Updates on Windows: Reach checks GitHub Releases after unlocking and every 12 hours and
+  offers "Update and restart" (Settings → Updates turns the check off). The Flatpak is
+  updated through Flathub
