@@ -76,6 +76,7 @@ jobs:
           gpgconf --launch gpg-agent
           /usr/lib/gnupg/gpg-preset-passphrase --preset -P "$GPG_PASSPHRASE" "$grip"
 
+          mkdir site
           ostree init --mode=archive-z2 --repo=site/repo
           flatpak build-import-bundle --gpg-sign="$fpr" --gpg-homedir="$GNUPGHOME" site/repo reach.flatpak
           flatpak build-update-repo --gpg-sign="$fpr" --gpg-homedir="$GNUPGHOME" \
