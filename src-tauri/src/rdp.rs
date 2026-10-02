@@ -152,7 +152,7 @@ mod linux {
         let mut child = Command::new(&exe)
             .arg("/args-from:stdin")
             // FreeRDP's SDL client: show Reach's icon and group with its windows.
-            .env("SDL_APP_ID", "network.corestart.reach")
+            .env("SDL_APP_ID", "io.github.thepoolboy.corestart-reach")
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())

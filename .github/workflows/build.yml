@@ -36,7 +36,7 @@ jobs:
           conf=$(jq -r .version src-tauri/tauri.conf.json)
           pkg=$(jq -r .version package.json)
           cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
-          meta=$(grep -o '<release version="[^"]*"' flatpak/network.corestart.reach.metainfo.xml | head -1 | cut -d'"' -f2)
+          meta=$(grep -o '<release version="[^"]*"' flatpak/io.github.thepoolboy.corestart-reach.metainfo.xml | head -1 | cut -d'"' -f2)
           echo "tag=$tag tauri.conf=$conf package.json=$pkg Cargo.toml=$cargo metainfo=$meta"
           [ "$tag" = "$conf" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$cargo" ] && [ "$tag" = "$meta" ]
 
@@ -135,10 +135,10 @@ jobs:
       # Builds offline, like Flathub, from flatpak/*-sources.json.
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          manifest-path: flatpak/network.corestart.reach.yml
+          manifest-path: flatpak/io.github.thepoolboy.corestart-reach.yml
           bundle: corestart-reach.flatpak
           artifact-name: corestart-reach-flatpak
-          cache-key: flatpak-builder-${{ hashFiles('flatpak/network.corestart.reach.yml') }}
+          cache-key: flatpak-builder-${{ hashFiles('flatpak/io.github.thepoolboy.corestart-reach.yml') }}
 
   release:
     name: Draft release

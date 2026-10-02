@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Store listing for Flathub, GNOME Software and KDE Discover. -->
 <component type="desktop-application">
-  <id>network.corestart.reach</id>
+  <id>io.github.thepoolboy.corestart-reach</id>
   <name>Corestart Reach</name>
   <summary>Manage RDP and SSH connections</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
 
-  <developer id="network.corestart">
-    <name>Corestart Networks</name>
+  <developer id="io.github.thepoolboy">
+    <name>ThePoolboy</name>
   </developer>
 
   <description>
@@ -57,7 +57,7 @@
     </screenshot>
   </screenshots>
 
-  <launchable type="desktop-id">network.corestart.reach.desktop</launchable>
+  <launchable type="desktop-id">io.github.thepoolboy.corestart-reach.desktop</launchable>
   <provides>
     <binary>corestart-reach</binary>
   </provides>

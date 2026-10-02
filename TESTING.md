@@ -29,7 +29,7 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 - [ ] First start asks you to create a master password (8+ characters, typed twice).
 - [ ] Lock (Ctrl+L), then unlock with the right password. A wrong password is refused.
 - [ ] Quit and restart: your connections are still there.
-- [ ] Linux: `ls -l ~/.var/app/network.corestart.reach/data/network.corestart.reach/` shows
+- [ ] Linux: `ls -l ~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/` shows
       `vault.json` as `-rw-------`.
 - [ ] Settings → change the master password. The old one no longer unlocks; the new one does.
       A wrong "current password" is refused.
@@ -112,15 +112,15 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 ## 7. Uninstall
 
 - [ ] **Windows:** Settings → Apps → Corestart Reach → Uninstall.
-- [ ] **Linux:** `flatpak uninstall network.corestart.reach`
+- [ ] **Linux:** `flatpak uninstall io.github.thepoolboy.corestart-reach`
 - [ ] Your vault stays in place (see the README for where), so reinstalling keeps your
-      connections. On Linux, `flatpak uninstall --delete-data network.corestart.reach` removes
+      connections. On Linux, `flatpak uninstall --delete-data io.github.thepoolboy.corestart-reach` removes
       it too.
 
 ## System notes
 
 - **Fedora GNOME / Ubuntu:** GNOME has no system tray; Reach doesn't use one.
 - **Any Linux:** if the window doesn't open or is blank, run
-  `flatpak run network.corestart.reach` from a terminal and send the output.
+  `flatpak run io.github.thepoolboy.corestart-reach` from a terminal and send the output.
 - **NVIDIA:** the Wayland crash fix is built in. Flatpak also needs its NVIDIA driver
   add-on to match your driver; `flatpak update` installs it.

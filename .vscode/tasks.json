@@ -13,9 +13,9 @@
     },
     {
       "label": "Reach: Build and install Flatpak",
-      "detail": "Build the Flatpak (with FreeRDP) and install it for your user. Run it from the app menu or with: flatpak run network.corestart.reach",
+      "detail": "Build the Flatpak (with FreeRDP) and install it for your user. Run it from the app menu or with: flatpak run io.github.thepoolboy.corestart-reach",
       "type": "shell",
-      "command": "flatpak run org.flatpak.Builder --user --install --force-clean --disable-rofiles-fuse build-flatpak flatpak/network.corestart.reach.yml",
+      "command": "flatpak run org.flatpak.Builder --user --install --force-clean --disable-rofiles-fuse build-flatpak flatpak/io.github.thepoolboy.corestart-reach.yml",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": [],
       "presentation": { "panel": "dedicated", "clear": true }

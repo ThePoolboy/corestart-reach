@@ -4,10 +4,10 @@ Corestart Reach ships on Linux only as a Flatpak, with FreeRDP built in.
 
 | File | What it is |
 | --- | --- |
-| `network.corestart.reach.yml` | Build recipe: FreeRDP 3 (SDL3 client), then Reach |
+| `io.github.thepoolboy.corestart-reach.yml` | Build recipe: FreeRDP 3 (SDL3 client), then Reach |
 | `cargo-sources.json`, `node-sources.json` | Every Rust crate and npm package, so the build runs offline |
-| `network.corestart.reach.desktop` | App menu entry |
-| `network.corestart.reach.metainfo.xml` | Store listing for Flathub, GNOME Software and KDE Discover |
+| `io.github.thepoolboy.corestart-reach.desktop` | App menu entry |
+| `io.github.thepoolboy.corestart-reach.metainfo.xml` | Store listing for Flathub, GNOME Software and KDE Discover |
 
 The recipe uses the GNOME 51 runtime. FreeRDP is built with only its **SDL3 client**: it
 runs natively on Wayland and falls back to X11 on X11 desktops, so RDP windows are sharp on
@@ -27,8 +27,8 @@ Build, install and run (or use the VS Code task **Reach: Build and install Flatp
 
 ```bash
 flatpak run org.flatpak.Builder --user --install --force-clean --disable-rofiles-fuse \
-  build-flatpak flatpak/network.corestart.reach.yml
-flatpak run network.corestart.reach
+  build-flatpak flatpak/io.github.thepoolboy.corestart-reach.yml
+flatpak run io.github.thepoolboy.corestart-reach
 ```
 
 `--disable-rofiles-fuse` is needed when flatpak-builder itself runs as a Flatpak.
@@ -38,7 +38,7 @@ Make a single installable file:
 
 ```bash
 flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-  ~/.local/share/flatpak/repo corestart-reach.flatpak network.corestart.reach
+  ~/.local/share/flatpak/repo corestart-reach.flatpak io.github.thepoolboy.corestart-reach
 ```
 
 GitHub builds the same bundle on every push (Actions → Build → Artifacts →
@@ -75,7 +75,7 @@ Key files outside `~/.ssh` are picked with the **Browse…** button, which goes 
 the desktop's file-chooser portal.
 
 The vault lives inside the sandbox, at
-`~/.var/app/network.corestart.reach/data/network.corestart.reach/vault.json`.
+`~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/vault.json`.
 
 ## Updating FreeRDP
 
@@ -87,9 +87,7 @@ reads the `x-checker-data` block and opens these updates automatically.
 
 1. Tag the release (`v0.1.0`). The metainfo's screenshots load from `screenshots/` on
    `main`, so keep those file names when replacing the pictures.
-2. **Make `https://corestart.network` load.** Flathub checks the domain in the app ID;
-   today only `www.corestart.network` resolves.
-3. Fork [flathub/flathub](https://github.com/flathub/flathub), branch from `new-pr`, and add:
+2. Fork [flathub/flathub](https://github.com/flathub/flathub), branch from `new-pr`, and add:
    - this manifest, with the `dir` source replaced by the tagged release:
      ```yaml
      - type: git
@@ -98,16 +96,17 @@ reads the `x-checker-data` block and opens these updates automatically.
        commit: <commit the tag points to>
      ```
    - `cargo-sources.json` and `node-sources.json`
-4. Open the pull request against `new-pr`, titled "Add network.corestart.reach".
-5. Ask for linter exceptions for the two SSH permissions. `flatpak-builder-lint` reports
+3. Open the pull request against `new-pr`, titled "Add io.github.thepoolboy.corestart-reach".
+4. Ask for linter exceptions for the two SSH permissions. `flatpak-builder-lint` reports
    them as `finish-args-ssh-filesystem-access` and `finish-args-has-socket-ssh-auth`.
    Reason: "SSH client: reads the user's SSH keys and known_hosts shared with OpenSSH, and
    authenticates through the user's ssh-agent."
-6. After approval, verify the app on flathub.org by serving the token Flathub gives you at
-   `https://corestart.network/.well-known/org.flathub.VerifiedApps.txt`.
+5. After approval, verify the app: log in to flathub.org with the ThePoolboy GitHub account
+   and verify it from the app's developer page. The `io.github.thepoolboy` ID is what ties
+   the app to that account, so no website is involved.
 
 Check a manifest the way Flathub will:
 
 ```bash
-flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest flatpak/network.corestart.reach.yml
+flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest flatpak/io.github.thepoolboy.corestart-reach.yml
 ```

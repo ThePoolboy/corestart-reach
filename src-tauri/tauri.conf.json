@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Corestart Reach",
   "version": "0.1.0",
-  "identifier": "network.corestart.reach",
+  "identifier": "io.github.thepoolboy.corestart-reach",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",

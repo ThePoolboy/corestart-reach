@@ -68,7 +68,7 @@ to GitHub). Unzip it to get the file.
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   ```
   then log out and back in. Installing the file downloads the GNOME runtime it needs from
-  Flathub the first time. Start Reach from the app menu, or with `flatpak run network.corestart.reach`.
+  Flathub the first time. Start Reach from the app menu, or with `flatpak run io.github.thepoolboy.corestart-reach`.
 
 The Flatpak's permissions and how it's built are described in [flatpak/README.md](flatpak/README.md).
 
@@ -76,9 +76,9 @@ The Flatpak's permissions and how it's built are described in [flatpak/README.md
 
 | | |
 | --- | --- |
-| Vault file (Flatpak) | `~/.var/app/network.corestart.reach/data/network.corestart.reach/vault.json` (owner-only, 0600) |
-| Vault file (Linux, built from source) | `~/.local/share/network.corestart.reach/vault.json` |
-| Vault file (Windows) | `%APPDATA%\network.corestart.reach\vault.json` |
+| Vault file (Flatpak) | `~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/vault.json` (owner-only, 0600) |
+| Vault file (Linux, built from source) | `~/.local/share/io.github.thepoolboy.corestart-reach/vault.json` |
+| Vault file (Windows) | `%APPDATA%\io.github.thepoolboy.corestart-reach\vault.json` |
 | Key derivation | Argon2id, 64 MiB memory, 3 passes, random 16-byte salt |
 | Encryption | XChaCha20-Poly1305, fresh random nonce on every save |
 | Backup | The previous version is kept as `vault.json.bak` on every save |

@@ -26,7 +26,7 @@ fn vault_path() -> PathBuf {
     } else {
         PathBuf::from(std::env::var_os("HOME").expect("HOME is not set")).join(".local/share")
     };
-    base.join("network.corestart.reach").join("vault.json")
+    base.join("io.github.thepoolboy.corestart-reach").join("vault.json")
 }
 
 fn folder(data: &mut VaultData, name: &str, parent: Option<Uuid>) -> Uuid {

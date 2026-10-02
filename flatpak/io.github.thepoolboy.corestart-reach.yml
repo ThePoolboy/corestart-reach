@@ -1,12 +1,12 @@
 # Flatpak build of Corestart Reach, with FreeRDP built in.
 #
 #   flatpak run org.flatpak.Builder --user --install --force-clean \
-#     build-flatpak flatpak/network.corestart.reach.yml
+#     build-flatpak flatpak/io.github.thepoolboy.corestart-reach.yml
 #
 # The build runs offline, as Flathub requires: every Rust crate and npm package
 # is listed in cargo-sources.json and node-sources.json. Regenerate them after
 # changing Cargo.lock or package-lock.json (see flatpak/README.md).
-id: network.corestart.reach
+id: io.github.thepoolboy.corestart-reach
 runtime: org.gnome.Platform
 runtime-version: "51"
 sdk: org.gnome.Sdk
@@ -111,12 +111,12 @@ modules:
       # (what `tauri build` does), instead of the dev server.
       - cargo build --release --offline --locked --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
       - install -Dm755 src-tauri/target/release/corestart-reach /app/bin/corestart-reach
-      - install -Dm644 flatpak/network.corestart.reach.desktop /app/share/applications/network.corestart.reach.desktop
-      - install -Dm644 flatpak/network.corestart.reach.metainfo.xml /app/share/metainfo/network.corestart.reach.metainfo.xml
-      - install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/network.corestart.reach.svg
-      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/network.corestart.reach.png
-      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/network.corestart.reach.png
-      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/network.corestart.reach.png
+      - install -Dm644 flatpak/io.github.thepoolboy.corestart-reach.desktop /app/share/applications/io.github.thepoolboy.corestart-reach.desktop
+      - install -Dm644 flatpak/io.github.thepoolboy.corestart-reach.metainfo.xml /app/share/metainfo/io.github.thepoolboy.corestart-reach.metainfo.xml
+      - install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/io.github.thepoolboy.corestart-reach.svg
+      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/io.github.thepoolboy.corestart-reach.png
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.thepoolboy.corestart-reach.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.thepoolboy.corestart-reach.png
     sources:
       - type: dir
         path: ..

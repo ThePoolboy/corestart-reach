@@ -81,7 +81,7 @@ fn main() {
     // program name, which would be "corestart-reach". Without a match KDE shows a
     // generic Wayland icon. Name it after the desktop file before GTK starts.
     #[cfg(target_os = "linux")]
-    glib::set_prgname(Some("network.corestart.reach"));
+    glib::set_prgname(Some("io.github.thepoolboy.corestart-reach"));
 
     tauri::Builder::default()
         // One copy of Reach at a time: two copies saving the same vault would
