@@ -38,7 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: flatpak
+          sparse-checkout: |
+            flatpak
+            .github/scripts
 
       - name: Install the Flatpak tools
         run: |
@@ -58,23 +60,11 @@ jobs:
       # commits, not version history, so they update from any older one.
       - name: Build the signed repository
         env:
-          GPG_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.FLATPAK_GPG_PASSPHRASE }}
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          FLATPAK_GPG_PASSPHRASE: ${{ secrets.FLATPAK_GPG_PASSPHRASE }}
         run: |
-          if [ -z "$GPG_KEY" ]; then
-            echo "::error::The FLATPAK_GPG_PRIVATE_KEY secret isn't set."; exit 1
-          fi
           export GNUPGHOME="$RUNNER_TEMP/gnupg"
-          mkdir -m 700 "$GNUPGHOME"
-          echo allow-preset-passphrase > "$GNUPGHOME/gpg-agent.conf"
-          echo "$GPG_KEY" | gpg --batch --import
-          fpr=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
-          if ! gpg --show-keys --with-colons flatpak/corestart-reach.gpg | grep -q "^fpr:.*:$fpr:$"; then
-            echo "::error::FLATPAK_GPG_PRIVATE_KEY doesn't match flatpak/corestart-reach.gpg."; exit 1
-          fi
-          grip=$(gpg --list-secret-keys --with-keygrip --with-colons | awk -F: '/^grp/ {print $10; exit}')
-          gpgconf --launch gpg-agent
-          /usr/lib/gnupg/gpg-preset-passphrase --preset -P "$GPG_PASSPHRASE" "$grip"
+          fpr=$(.github/scripts/flatpak-signing-key.sh)
 
           mkdir site
           ostree init --mode=archive-z2 --repo=site/repo
