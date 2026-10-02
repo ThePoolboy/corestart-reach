@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 (2026-10-02)
 
 - Windows: the installer can install Reach for everyone on the computer (as an admin), or
   just for you as before. Silent install for everyone: `/S /AllUsers`
