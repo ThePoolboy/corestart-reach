@@ -47,20 +47,20 @@ changed in Settings; the vault and its backup are re-encrypted with the new one.
 ## Install
 
 Two downloads cover everything: a **Flatpak** for every Linux distribution (FreeRDP
-included) and an **installer** for Windows.
-
-Test builds are made automatically for every change: open the repository's
-[**Actions**](https://github.com/ThePoolboy/corestart-reach/actions) tab, pick the latest
-green **Build** run, and download from **Artifacts** at the bottom (you need to be signed in
-to GitHub). Unzip it to get the file.
+included) and an **installer** for Windows. Get them from the
+[**latest release**](https://github.com/ThePoolboy/corestart-reach/releases/latest).
 
 | System | Download | Install |
 | --- | --- | --- |
-| Windows 10 / 11 | `corestart-reach-windows` → `Corestart-Reach_0.1.0_x64-setup.exe` | Run it. No admin rights needed. |
-| Linux | `corestart-reach-flatpak` → `corestart-reach.flatpak` | `flatpak install --user ./corestart-reach.flatpak` |
+| Windows 10 / 11 | `Corestart-Reach_<version>_x64-setup.exe` | Run it. No admin rights needed. |
+| Linux | `Corestart-Reach_<version>_x86_64.flatpak` | `flatpak install --user ./Corestart-Reach_<version>_x86_64.flatpak` |
 
-- **Windows** shows "Windows protected your PC" the first time, because test builds aren't
-  code-signed yet. Click **More info → Run anyway**.
+- **Windows** shows "Windows protected your PC" the first time, because Reach isn't
+  code-signed yet. Click **More info → Run anyway**. After that Reach updates itself (see
+  [Updates](#updates)).
+- **Flathub:** Reach is on its way to Flathub. Once it's accepted, you'll be able to
+  install it from Discover or GNOME Software and it will update with the rest of your
+  apps.
 - **Linux:** Fedora and Linux Mint have Flatpak and Flathub set up already. **Ubuntu** needs
   it once:
   ```bash
@@ -71,6 +71,11 @@ to GitHub). Unzip it to get the file.
   Flathub the first time. Start Reach from the app menu, or with `flatpak run io.github.thepoolboy.corestart-reach`.
 
 The Flatpak's permissions and how it's built are described in [flatpak/README.md](flatpak/README.md).
+
+Test builds of every change are under the repository's
+[**Actions**](https://github.com/ThePoolboy/corestart-reach/actions) tab: pick the latest
+green **Build** run and download from **Artifacts** at the bottom (you need to be signed in
+to GitHub). See [TESTING.md](TESTING.md).
 
 ## How your data is stored
 
