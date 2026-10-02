@@ -165,8 +165,27 @@ jobs:
         with:
           manifest-path: flatpak/io.github.thepoolboy.corestart-reach.yml
           bundle: corestart-reach.flatpak
-          artifact-name: corestart-reach-flatpak
+          upload-artifact: false
           cache-key: flatpak-builder-${{ hashFiles('flatpak/io.github.thepoolboy.corestart-reach.yml') }}
+
+      # Release bundles name Reach's update repository and its key, so installing
+      # the file also sets up updates (flatpak-repo.yml publishes the repository).
+      # Test builds leave it out: the next update would swap a test copy for the
+      # latest release.
+      - name: Point the release bundle at the update repository
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          flatpak build-bundle repo corestart-reach.flatpak io.github.thepoolboy.corestart-reach master \
+            --repo-url=https://thepoolboy.github.io/corestart-reach/repo/ \
+            --gpg-keys=flatpak/corestart-reach.gpg \
+            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: corestart-reach-flatpak
+          path: corestart-reach.flatpak
+          if-no-files-found: error
+          retention-days: 30
 
   release:
     name: Draft release

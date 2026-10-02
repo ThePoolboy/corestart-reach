@@ -46,29 +46,27 @@ changed in Settings; the vault and its backup are re-encrypted with the new one.
 
 ## Install
 
-Two downloads cover everything: a **Flatpak** for every Linux distribution (FreeRDP
-included) and an **installer** for Windows. Get them from the
-[**latest release**](https://github.com/ThePoolboy/corestart-reach/releases/latest).
+An **installer** for Windows and a **Flatpak** for every Linux distribution (FreeRDP
+included). Both keep themselves up to date.
 
-| System | Download | Install |
-| --- | --- | --- |
-| Windows 10 / 11 | `Corestart-Reach_<version>_x64-setup.exe` | Run it. No admin rights needed. |
-| Linux | `Corestart-Reach_<version>_x86_64.flatpak` | `flatpak install --user ./Corestart-Reach_<version>_x86_64.flatpak` |
+| System | Install |
+| --- | --- |
+| Windows 10 / 11 | Download `Corestart-Reach_<version>_x64-setup.exe` from the [**latest release**](https://github.com/ThePoolboy/corestart-reach/releases/latest) and run it. No admin rights needed. |
+| Linux | Open **[thepoolboy.github.io/corestart-reach](https://thepoolboy.github.io/corestart-reach/)** and click **Install**, or run `flatpak install --user https://thepoolboy.github.io/corestart-reach/corestart-reach.flatpakref` |
 
 - **Windows** shows "Windows protected your PC" the first time, because Reach isn't
   code-signed yet. Click **More info → Run anyway**. After that Reach updates itself (see
   [Updates](#updates)).
-- **Flathub:** Reach is on its way to Flathub. Once it's accepted, you'll be able to
-  install it from Discover or GNOME Software and it will update with the rest of your
-  apps.
-- **Linux:** Fedora and Linux Mint have Flatpak and Flathub set up already. **Ubuntu** needs
-  it once:
+- **Linux:** the `.flatpak` file on each release installs the same way
+  (`flatpak install --user ./Corestart-Reach_<version>_x86_64.flatpak`) and also receives
+  updates, from version 0.1.1 on. Fedora and Linux Mint have Flatpak and Flathub set up
+  already. **Ubuntu** needs it once:
   ```bash
   sudo apt install flatpak
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   ```
-  then log out and back in. Installing the file downloads the GNOME runtime it needs from
-  Flathub the first time. Start Reach from the app menu, or with `flatpak run io.github.thepoolboy.corestart-reach`.
+  then log out and back in. The first install downloads the GNOME runtime Reach needs from
+  Flathub. Start Reach from the app menu, or with `flatpak run io.github.thepoolboy.corestart-reach`.
 
 The Flatpak's permissions and how it's built are described in [flatpak/README.md](flatpak/README.md).
 
@@ -112,8 +110,11 @@ Only one copy of Reach runs at a time; starting it again brings the open one for
   newest release and sends nothing about you or your vault. Turn it off in
   **Settings → Updates**, or check by hand with **Check now**. Reach only installs an update
   carrying the project's updater signature.
-- **Linux:** the Flatpak is updated by your software center (Discover, GNOME Software) or
-  `flatpak update`, through Flathub. Reach doesn't check for updates itself.
+- **Linux:** Reach's own Flatpak repository, on this project's GitHub Pages site, gets each
+  new release when it's published. Your software center (Discover, GNOME Software) or
+  `flatpak update` installs it like any other update. Releases there are signed with the
+  project's [repository key](https://thepoolboy.github.io/corestart-reach/corestart-reach.gpg).
+  Reach itself doesn't check for updates on Linux.
 
 ## Keyboard shortcuts
 

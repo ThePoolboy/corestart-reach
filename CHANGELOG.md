@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Linux: Reach's own Flatpak repository at
+  [thepoolboy.github.io/corestart-reach](https://thepoolboy.github.io/corestart-reach/).
+  Installing from there, or from a release's `.flatpak` file, gets updates through the
+  software center or `flatpak update`
+
 ## 0.1.0 (2026-10-02)
 
 First public test release.
@@ -21,5 +28,4 @@ First public test release.
   (Ko-fi, Bitcoin and Ethereum)
 - Flatpak for Linux, installer for Windows
 - Updates on Windows: Reach checks GitHub Releases after unlocking and every 12 hours and
-  offers "Update and restart" (Settings → Updates turns the check off). The Flatpak is
-  updated through Flathub
+  offers "Update and restart" (Settings → Updates turns the check off)

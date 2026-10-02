@@ -192,7 +192,7 @@
           </button>
         </div>
       {:else}
-        <p class="about">Your software center installs updates for Reach from Flathub.</p>
+        <p class="about">Your software center (or <code>flatpak update</code>) installs updates for Reach.</p>
       {/if}
     </section>
 

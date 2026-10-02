@@ -29,7 +29,7 @@ pub struct Settings {
     /// Lock the vault after this many minutes without using Reach. 0 = never.
     pub auto_lock_minutes: u32,
     /// Look for a new version after unlocking and every 12 hours (Windows only;
-    /// Flathub updates the Flatpak).
+    /// Flatpak updates the Linux version).
     pub check_for_updates: bool,
 }
 

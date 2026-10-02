@@ -1,7 +1,8 @@
 //! Updates. On Windows Reach updates itself from GitHub Releases: it reads
 //! `latest.json` from the newest published release and installs the setup.exe
 //! it names, which must carry a signature from the project's updater key
-//! (public half in tauri.conf.json). Linux builds leave updating to Flathub.
+//! (public half in tauri.conf.json). On Linux, Flatpak updates Reach from the
+//! project's Flatpak repository instead.
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -12,7 +13,7 @@ pub struct UpdateInfo {
     pub version: String,
 }
 
-/// Whether this build updates itself. False on Linux, where Flathub does it.
+/// Whether this build updates itself. False on Linux, where Flatpak does it.
 #[tauri::command]
 pub fn update_supported() -> bool {
     cfg!(windows)
@@ -69,11 +70,11 @@ mod imp {
 #[cfg(not(windows))]
 #[tauri::command]
 pub fn update_check() -> crate::error::Result<Option<UpdateInfo>> {
-    Err(crate::error::msg("Reach is updated by your software center (Flathub)."))
+    Err(crate::error::msg("Reach is updated by your software center (Flatpak)."))
 }
 
 #[cfg(not(windows))]
 #[tauri::command]
 pub fn update_install() -> crate::error::Result<()> {
-    Err(crate::error::msg("Reach is updated by your software center (Flathub)."))
+    Err(crate::error::msg("Reach is updated by your software center (Flatpak)."))
 }

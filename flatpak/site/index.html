@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Corestart Reach for Linux</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #f4f5f7; --card: #fff; --text: #1d1d1f; --dim: #5c6066; --line: #e2e4e8; --accent: #1a8fdc; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #1b1b1d; --card: #242427; --text: #ececec; --dim: #a2a6ad; --line: #353539; --accent: #23a0f3; }
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 40px 16px; }
+    h1 { margin: 0 0 4px; font-size: 28px; }
+    .sub { margin: 0 0 28px; color: var(--dim); }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
+    h2 { margin: 0 0 8px; font-size: 17px; }
+    p { margin: 8px 0; }
+    a { color: var(--accent); }
+    .button { display: inline-block; margin: 6px 0; padding: 9px 18px; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
+    pre { margin: 8px 0; padding: 10px 12px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Corestart Reach for Linux</h1>
+    <p class="sub">RDP and SSH connection manager. Install it once from here and it updates with the rest of your apps.</p>
+
+    <section>
+      <h2>Install</h2>
+      <p>Click to open it in your software center (Discover, GNOME Software):</p>
+      <a class="button" href="corestart-reach.flatpakref">Install Corestart Reach</a>
+      <p>Or in a terminal:</p>
+      <pre>flatpak install --user https://thepoolboy.github.io/corestart-reach/corestart-reach.flatpakref</pre>
+      <p>Needs Flatpak with Flathub set up (Fedora and Linux Mint have it already). Ubuntu: see the
+        <a href="https://github.com/ThePoolboy/corestart-reach#install">install notes</a>.</p>
+    </section>
+
+    <section>
+      <h2>Updates</h2>
+      <p>New versions arrive through your software center or <code>flatpak update</code>, signed with the
+        project's <a href="corestart-reach.gpg">repository key</a>.</p>
+    </section>
+
+    <p><a href="https://github.com/ThePoolboy/corestart-reach">Source code, Windows download and release notes on GitHub</a></p>
+  </main>
+</body>
+</html>

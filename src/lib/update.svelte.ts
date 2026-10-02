@@ -1,5 +1,5 @@
 // Windows self-update. Looks for a new release after unlocking and every 12
-// hours while Reach runs, when Settings allows it. Linux gets updates from Flathub.
+// hours while Reach runs, when Settings allows it. On Linux, Flatpak updates Reach.
 import { api, type UpdateInfo } from './api';
 
 const RECHECK_MS = 12 * 60 * 60 * 1000;

@@ -1,0 +1,120 @@
+# Publishes Reach's Flatpak update repository on GitHub Pages:
+#   https://thepoolboy.github.io/corestart-reach/
+#
+# Runs when a release is published, the same moment Windows copies find the
+# update through latest.json. It rebuilds the repository from that release's
+# .flatpak and signs it, and installed copies then update through
+# `flatpak update` and software centers. Run it by hand (Actions → Flatpak
+# repository → Run workflow) to publish the latest release again.
+#
+# Needs the repository secrets FLATPAK_GPG_PRIVATE_KEY and FLATPAK_GPG_PASSPHRASE,
+# and the matching public key in flatpak/corestart-reach.gpg.
+name: Flatpak repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: flatpak-repo
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: flatpak
+
+      - name: Install the Flatpak tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak ostree gnupg gpg-agent
+
+      - name: Download the release's Flatpak
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          tag="${TAG:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}"
+          echo "Publishing $tag"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.flatpak' --output reach.flatpak
+
+      # The repository holds only the newest release. Installed copies compare
+      # commits, not version history, so they update from any older one.
+      - name: Build the signed repository
+        env:
+          GPG_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.FLATPAK_GPG_PASSPHRASE }}
+        run: |
+          if [ -z "$GPG_KEY" ]; then
+            echo "::error::The FLATPAK_GPG_PRIVATE_KEY secret isn't set."; exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          echo allow-preset-passphrase > "$GNUPGHOME/gpg-agent.conf"
+          echo "$GPG_KEY" | gpg --batch --import
+          fpr=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
+          if ! gpg --show-keys --with-colons flatpak/corestart-reach.gpg | grep -q "^fpr:.*:$fpr:$"; then
+            echo "::error::FLATPAK_GPG_PRIVATE_KEY doesn't match flatpak/corestart-reach.gpg."; exit 1
+          fi
+          grip=$(gpg --list-secret-keys --with-keygrip --with-colons | awk -F: '/^grp/ {print $10; exit}')
+          gpgconf --launch gpg-agent
+          /usr/lib/gnupg/gpg-preset-passphrase --preset -P "$GPG_PASSPHRASE" "$grip"
+
+          ostree init --mode=archive-z2 --repo=site/repo
+          flatpak build-import-bundle --gpg-sign="$fpr" --gpg-homedir="$GNUPGHOME" site/repo reach.flatpak
+          flatpak build-update-repo --gpg-sign="$fpr" --gpg-homedir="$GNUPGHOME" \
+            --title="Corestart Reach" --default-branch=master --generate-static-deltas --prune site/repo
+          gpgconf --kill gpg-agent
+
+      # The .flatpakref installs Reach and sets up updates in one go; software
+      # centers open it from a browser. The .flatpakrepo only adds the repository.
+      - name: Add the install files and page
+        run: |
+          url=https://thepoolboy.github.io/corestart-reach
+          key=$(base64 -w0 flatpak/corestart-reach.gpg)
+          cat > site/corestart-reach.flatpakref <<EOF
+          [Flatpak Ref]
+          Name=io.github.thepoolboy.corestart-reach
+          Branch=master
+          Title=Corestart Reach
+          Comment=RDP and SSH connection manager
+          Url=$url/repo/
+          SuggestRemoteName=corestart-reach
+          RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          Homepage=https://github.com/ThePoolboy/corestart-reach
+          IsRuntime=false
+          GPGKey=$key
+          EOF
+          cat > site/corestart-reach.flatpakrepo <<EOF
+          [Flatpak Repo]
+          Title=Corestart Reach
+          Comment=Updates for Corestart Reach
+          Url=$url/repo/
+          Homepage=https://github.com/ThePoolboy/corestart-reach
+          GPGKey=$key
+          EOF
+          cp flatpak/corestart-reach.gpg flatpak/site/index.html site/
+          find site -maxdepth 1 -type f -exec ls -l {} +
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v5

@@ -160,7 +160,7 @@ export const api = {
   /** Open one of Reach's web pages in the browser. */
   openLink: (link: 'source' | 'kofi' | 'releases') => invoke<void>('open_link', { link }),
 
-  /** False on Linux, where Flathub updates Reach. */
+  /** False on Linux, where Flatpak updates Reach. */
   updateSupported: () => invoke<boolean>('update_supported'),
   /** Null when this is the latest version. */
   updateCheck: () => invoke<UpdateInfo | null>('update_check'),
