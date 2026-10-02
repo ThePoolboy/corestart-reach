@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Windows: an RDP window no longer opens taller than the screen on laptops with display
+  scaling (125%, 150%…) or with a bigger second monitor. It now starts at 80% of the
+  smallest screen, after scaling
+
 ## 0.1.2 (2026-10-02)
 
 - Windows: an RDP window always resizes the remote desktop to fit when you resize it, even

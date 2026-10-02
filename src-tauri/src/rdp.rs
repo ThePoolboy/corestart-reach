@@ -441,6 +441,25 @@ mod windows_impl {
         f.set_len(new.len() as u64)
     }
 
+    /// The usable area of the smallest screen, before display scaling: mstsc scales
+    /// its window up by the scaling (125%, 150%…), so on a scaled laptop screen
+    /// physical pixels make it taller than the screen. The smallest, because mstsc
+    /// may open on any of them.
+    fn smallest_screen(app: &AppHandle) -> Option<(u32, u32)> {
+        let screens: Vec<(u32, u32)> = app
+            .available_monitors()
+            .ok()?
+            .iter()
+            .map(|m| {
+                let area = m.work_area().size;
+                let area = if area.width > 0 && area.height > 0 { area } else { *m.size() };
+                let unscaled = |px: u32| (f64::from(px) / m.scale_factor().max(1.0)) as u32;
+                (unscaled(area.width), unscaled(area.height))
+            })
+            .collect();
+        Some((screens.iter().map(|s| s.0).min()?, screens.iter().map(|s| s.1).min()?))
+    }
+
     pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
         // Not worth failing the connection over: at worst the window doesn't resize.
         let _ = follow_window();
@@ -453,9 +472,8 @@ mod windows_impl {
         let password = c.password.as_deref().ok_or_else(|| msg("There's no password to log in with."))?;
         store_credential(&c.host, &user, password)?;
 
-        let screen = app.primary_monitor().ok().flatten().map(|m| (m.size().width, m.size().height));
         Command::new("mstsc.exe")
-            .args(arguments(c, screen))
+            .args(arguments(c, smallest_screen(app)))
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| msg(format!("Couldn't start mstsc: {e}")))?;
