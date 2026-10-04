@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-04)
 
 - RDP connections can have a **Fixed size** screen: pick a common size or type your own
   (640 × 480 to 8192 × 8192). The remote desktop keeps that resolution, and resizing the

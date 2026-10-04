@@ -95,6 +95,17 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.2.0" date="2026-10-04">
+      <description>
+        <p>A calmer interface, fixed screen sizes for RDP, and keyboard shortcuts you can change.</p>
+        <ul>
+          <li>RDP connections can keep one screen size, scaled to fit the window</li>
+          <li>SSH windows open at 80% of the screen, like RDP windows</li>
+          <li>Settings lists the keyboard shortcuts and lets you change them</li>
+          <li>Simpler screens, and an app icon that stands out on dark taskbars</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.2" date="2026-10-02">
       <description>
         <p>Windows: RDP windows resize the remote desktop to fit when you resize them.</p>
