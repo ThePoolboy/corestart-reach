@@ -14,7 +14,7 @@
     type Tree,
   } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
-  import { theme, toggleTheme } from '../lib/theme.svelte';
+  import { keysFor, pressed } from '../lib/shortcuts';
   import { toast, toastError } from '../lib/toast.svelte';
   import { isInside, searchRows, visibleRows, type Row } from '../lib/tree';
   import { autoCheck, installUpdate } from '../lib/update.svelte';
@@ -146,6 +146,13 @@
       },
     };
   }
+
+  /** "14 connections in 5 folders" for the Home screen. */
+  const summary = $derived.by(() => {
+    const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const connections = count(tree.connections.length, 'connection');
+    return tree.folders.length ? `${connections} in ${count(tree.folders.length, 'folder')}` : connections;
+  });
 
   // ---- navigation -------------------------------------------------------
 
@@ -512,21 +519,22 @@
     requestAnimationFrame(() => document.querySelector('.tree .on')?.scrollIntoView({ block: 'nearest' }));
   }
 
+  /** The shortcuts set in Settings (Save is the editor's own). */
   function globalKey(e: KeyboardEvent) {
-    const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.key.toLowerCase() === 'f') {
+    const settings = tree.settings;
+    if (pressed(e, settings, 'search')) {
       e.preventDefault();
       document.getElementById('search')?.focus();
-    } else if (mod && e.key.toLowerCase() === 'l') {
+    } else if (pressed(e, settings, 'lock')) {
       e.preventDefault();
       onlock();
-    } else if (mod && e.key === ',') {
+    } else if (pressed(e, settings, 'settings')) {
       e.preventDefault();
       go({ kind: 'settings' });
-    } else if (mod && e.key.toLowerCase() === 'k') {
+    } else if (pressed(e, settings, 'quickConnect')) {
       e.preventDefault();
       openQuickConnect();
-    } else if (mod && e.key.toLowerCase() === 'n') {
+    } else if (pressed(e, settings, 'newConnection')) {
       e.preventDefault();
       newConnection(selectedConnection?.protocol ?? 'rdp');
     }
@@ -541,29 +549,13 @@
 
 <div class="layout">
   <aside>
-    <div class="brand">
-      <button class="home-link" title="Home" onclick={() => go({ kind: 'home' })}>
-        <img src="/icon.svg" alt="" width="26" height="26" />
-        <span>Corestart Reach</span>
-      </button>
-      <button
-        class="btn ghost icon"
-        title={theme.light ? 'Switch to dark mode' : 'Switch to light mode'}
-        aria-label={theme.light ? 'Switch to dark mode' : 'Switch to light mode'}
-        onclick={toggleTheme}
-      >
-        <Icon name={theme.light ? 'moon' : 'sun'} />
-      </button>
-      <button class="btn ghost icon" title="Lock vault (Ctrl+L)" onclick={onlock}><Icon name="lock" /></button>
-    </div>
-
     <div class="tools">
       <div class="search">
         <Icon name="search" size={14} />
         <input
           id="search"
           class="input"
-          placeholder="Search (Ctrl+F)"
+          placeholder="Search ({keysFor(tree.settings, 'search')})"
           bind:value={query}
           spellcheck="false"
           onkeydown={(e) => {
@@ -574,7 +566,7 @@
           }}
         />
       </div>
-      <button class="btn icon" title="Quick connect (Ctrl+K)" onclick={() => openQuickConnect()}>
+      <button class="btn icon" title="Quick connect ({keysFor(tree.settings, 'quickConnect')})" onclick={() => openQuickConnect()}>
         <Icon name="bolt" />
       </button>
       <div class="new-menu">
@@ -589,6 +581,9 @@
           </div>
         {/if}
       </div>
+      <button class="btn icon" title="Lock Reach ({keysFor(tree.settings, 'lock')})" aria-label="Lock Reach" onclick={onlock}>
+        <Icon name="lock" />
+      </button>
     </div>
 
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -634,20 +629,27 @@
               </span>
               <Icon name="folder" />
               <span class="name">{row.folder.name}</span>
-              <span class="count">{row.count}</span>
+              {#if !row.open}<span class="count">{row.count}</span>{/if}
             </button>
           {:else}
             <button
               class="row"
               class:on={selectedId === row.connection.id}
               class:menu-on={ctx?.for === row.connection.id}
-              style="padding-left: {row.path !== undefined ? 10 : 30 + row.depth * 16}px"
+              style="padding-left: {row.path !== undefined ? 10 : 32 + row.depth * 16}px"
               onclick={() => clickRow(row)}
               ondblclick={() => connect(row.connection.id)}
               title="{row.connection.host} (double-click to connect)"
               tabindex="-1"
             >
-              <span class="badge {row.connection.protocol}">{row.connection.protocol}</span>
+              <span
+                class="proto {row.connection.protocol}"
+                role="img"
+                aria-label={row.connection.protocol.toUpperCase()}
+                title={row.connection.protocol.toUpperCase()}
+              >
+                <Icon name={row.connection.protocol === 'rdp' ? 'monitor' : 'terminal'} />
+              </span>
               <span class="name">
                 {row.connection.name}
                 {#if row.path}<small>{row.path}</small>{/if}
@@ -660,7 +662,7 @@
           {#if query.trim()}
             Nothing matches "{query.trim()}".<br />Press Enter to quick connect to it.
           {:else}
-            No connections yet. Press <strong>+</strong> to add one.
+            Press <strong>+</strong> to add a connection.
           {/if}
         </li>
       {/each}
@@ -671,7 +673,7 @@
         <Icon name="home" /> Home
       </button>
       <button class="nav" class:on={view.kind === 'credentials'} onclick={() => go({ kind: 'credentials', id: null })}>
-        <Icon name="key" /> Credentials <span class="count">{tree.credentials.length}</span>
+        <Icon name="key" /> Credentials
       </button>
       <button class="nav" class:on={view.kind === 'settings'} onclick={() => go({ kind: 'settings' })}>
         <Icon name="settings" /> Settings
@@ -693,6 +695,7 @@
             onconnect={(id) => connect(id)}
             onduplicate={duplicate}
             ondelete={confirmDeleteConnection}
+            oneditcredential={(id) => go({ kind: 'credentials', id })}
             oncancel={() => go({ kind: 'home' })}
           />
         {:else if view.kind === 'new'}
@@ -708,6 +711,7 @@
             onconnect={(id) => connect(id)}
             onduplicate={duplicate}
             ondelete={confirmDeleteConnection}
+            oneditcredential={(id) => go({ kind: 'credentials', id })}
             oncancel={() => {
               dirty = false;
               go({ kind: 'home' });
@@ -736,20 +740,22 @@
           <SettingsPane {tree} {onchange} />
         {:else}
           <div class="home">
-            <img src="/icon.svg" alt="" width="84" height="84" />
-            <h1>Corestart Reach</h1>
-            <p>
-              {tree.connections.length} connection{tree.connections.length === 1 ? '' : 's'}
-              in {tree.folders.length} folder{tree.folders.length === 1 ? '' : 's'}.
-              Double-click a connection to open it.
-            </p>
+            {#if tree.connections.length}
+              <h1>{summary}</h1>
+              <p>Double&#8209;click a connection to open it.</p>
+            {:else}
+              <h1>No connections yet</h1>
+              <p>Add your first one, or quick connect to any host without saving it.</p>
+            {/if}
             <div class="home-actions">
-              <button class="btn primary" onclick={() => openQuickConnect()}><Icon name="bolt" /> Quick connect</button>
-              <button class="btn" onclick={() => newConnection('rdp')}><Icon name="monitor" /> New RDP connection</button>
-              <button class="btn" onclick={() => newConnection('ssh')}><Icon name="terminal" /> New SSH connection</button>
-              <button class="btn" onclick={() => askNewFolder()}><Icon name="folder" /> New folder</button>
+              <button class="btn primary" title="Quick connect ({keysFor(tree.settings, 'quickConnect')})" onclick={() => openQuickConnect()}>
+                <Icon name="bolt" /> Quick connect
+              </button>
+              <!-- Like its shortcut: starts as RDP; the form's Protocol switches it to SSH. -->
+              <button class="btn" title="New connection ({keysFor(tree.settings, 'newConnection')})" onclick={() => newConnection('rdp')}>
+                <Icon name="plus" /> New connection
+              </button>
             </div>
-            <p class="keys">Ctrl+K quick connect · Ctrl+N new connection · Ctrl+F search · Ctrl+L lock</p>
           </div>
         {/if}
       {/key}
@@ -834,36 +840,10 @@
     border-right: 1px solid var(--line);
     background: var(--bg-side);
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 10px 10px 14px;
-    font-weight: 700;
-    font-size: 15px;
-  }
-  .home-link {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    font-weight: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .home-link span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .tools {
     display: flex;
     gap: 6px;
-    padding: 0 10px 10px;
+    padding: 12px 10px 10px;
   }
   .search {
     position: relative;
@@ -980,10 +960,15 @@
     margin-left: 6px;
     color: var(--text-faint);
   }
-  .row .badge {
+  .proto {
     flex: none;
-    width: 32px;
-    justify-content: center;
+    display: grid;
+  }
+  .proto.rdp {
+    color: var(--rdp);
+  }
+  .proto.ssh {
+    color: var(--ssh);
   }
   .count {
     font-size: 11px;
@@ -993,6 +978,7 @@
     padding: 16px 10px;
     color: var(--text-faint);
     text-align: center;
+    text-wrap: balance;
   }
   .foot {
     padding: 8px;
@@ -1017,9 +1003,6 @@
   .nav.on {
     background: var(--bg-selected);
   }
-  .nav .count {
-    margin-left: auto;
-  }
   main {
     min-width: 0;
     min-height: 0;
@@ -1038,27 +1021,25 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    padding: 24px;
+    /* A little above the middle, where centred content looks centred. */
+    padding: 24px 24px 72px;
     text-align: center;
   }
   .home h1 {
-    margin: 6px 0 0;
+    margin: 0;
     font-size: 22px;
   }
   .home p {
     margin: 0;
     color: var(--text-dim);
     max-width: 420px;
+    text-wrap: balance;
   }
   .home-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
-    margin: 14px 0 6px;
-  }
-  .keys {
-    font-size: 12px;
-    color: var(--text-faint) !important;
+    margin-top: 12px;
   }
 </style>

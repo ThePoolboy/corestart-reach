@@ -76,7 +76,7 @@ through unnoticed.
 Key files outside `~/.ssh` are picked with the **Browse…** button, which goes through
 the desktop's file-chooser portal.
 
-The vault lives inside the sandbox, at
+Reach's data file lives inside the sandbox, at
 `~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/vault.json`.
 
 ## Updating FreeRDP

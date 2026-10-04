@@ -21,40 +21,57 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       with the Corestart icon.
 - [ ] Opening it shows the Reach icon in the title bar and the taskbar / dock (not the generic
       Wayland "W" or a gear). RDP and SSH windows do too and group with Reach.
+- [ ] On a dark taskbar the icon's blue rim shows, so it doesn't fade into the panel; on a light
+      taskbar it's a clear dark tile.
 - [ ] GNOME Software / KDE Discover show Reach with its description (from the metainfo).
 - [ ] Nothing else needs installing: RDP works without a system FreeRDP.
 
-## 2. Vault
+## 2. Master password and settings
 
 - [ ] First start asks you to create a master password (8+ characters, typed twice).
-- [ ] Lock (Ctrl+L), then unlock with the right password. A wrong password is refused.
+- [ ] Lock (the padlock at the end of the search row, or Ctrl+L), then unlock with the right
+      password. A wrong password is refused.
 - [ ] Quit and restart: your connections are still there.
 - [ ] Linux: `ls -l ~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/` shows
       `vault.json` as `-rw-------`.
-- [ ] Settings → change the master password. The old one no longer unlocks; the new one does.
+- [ ] Settings → **Change master password…** opens the form; **Cancel** closes it and clears
+      what you typed. Change the password: the old one no longer unlocks; the new one does.
       A wrong "current password" is refused.
-- [ ] Settings → auto-lock after 5 minutes. Leave Reach alone for 5 minutes: it locks and says
-      why. An open SSH window keeps working.
+- [ ] Settings → Security → **Lock Reach when idle**: after 5 minutes. Leave Reach alone for 5
+      minutes: it locks and says why. An open SSH window keeps working.
 - [ ] Put the computer to sleep for longer than the auto-lock time: Reach is locked when it wakes.
 - [ ] Auto-lock "Never": it stays unlocked. The setting survives a restart.
-- [ ] Settings → **Source code on GitHub** and **Support on Ko-fi** open in the web browser
-      (in the Flatpak too). The copy buttons copy each address; **Show QR codes** shows both.
-- [ ] Settings → Appearance: Light and Dark switch the look at once, and so does the sun/moon
-      button by the lock. System follows the desktop. The choice survives a restart and shows
-      on the lock screen.
+- [ ] Settings → **Source code on GitHub**, **Sponsor on GitHub** and **Support on Ko-fi** open
+      in the web browser (in the Flatpak too). **Donate with crypto** shows the addresses: the
+      copy buttons copy each one; **Show QR codes** shows both.
+- [ ] Settings → About shows where the data file is, matching the table in the README.
+- [ ] Settings → Keyboard shortcuts: click Quick connect's keys and press Ctrl+J. Ctrl+J now
+      opens Quick connect and Ctrl+K doesn't; the ⚡ button's tooltip says Ctrl+J. It survives a
+      restart. **Reset** brings back Ctrl+K. Ctrl+C, a plain letter and a combination another
+      action uses are refused with a reason; Escape cancels.
+- [ ] Settings → Appearance: Light and Dark switch the look at once. System follows the
+      desktop. The choice survives a restart and shows on the lock screen.
 
 ## 3. Organising
 
 - [ ] Create folders and subfolders; add RDP and SSH connections into them.
 - [ ] Drag a connection onto a folder, onto another connection (joins its folder), and onto
       empty space (top level). Drag a folder into another folder.
+- [ ] Connections show a monitor (RDP) or terminal (SSH) icon. Closed folders show how many
+      connections they hold; open ones don't.
 - [ ] Right-click → **Move to…**, **Rename…**, **Duplicate**, **Delete** all work.
+- [ ] In a connection, **⋯** → **Duplicate** and **Delete** work. Pressing **⋯** again, Escape
+      or clicking elsewhere closes the menu.
+- [ ] Changing **Protocol** in a connection swaps the RDP and SSH fields and the default port.
 - [ ] A folder can't be dragged or moved into itself or its own subfolder.
-- [ ] From a connection, folder, Credentials or Settings, **Home** (bottom left) or clicking the
-      Corestart Reach name returns to the start screen. With unsaved edits it asks first.
+- [ ] From a connection, folder, Credentials or Settings, **Home** (bottom left) returns to the
+      start screen. With unsaved edits it asks first. Home shows how many connections there are,
+      or "No connections yet" before any are added, and its **Quick connect** and **New
+      connection** buttons work.
 - [ ] Search (Ctrl+F) finds by name, host and folder; Enter connects to the first result.
 - [ ] Saved credentials: create one, use it on two connections, change its password once,
-      and both connections use the new one.
+      and both connections use the new one. **Edit** next to the credential in a connection
+      opens it under Credentials.
 - [ ] Right-clicking anywhere other than the sidebar shows **no** browser menu
       (Back / Reload / Inspect).
 
@@ -87,6 +104,8 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 
 ## 5. SSH
 
+- [ ] An SSH window opens centred at about 80% of the screen, the same size as an RDP window
+      in **Window** mode, with no visible jump in size. Also on a laptop at 125% or 150% scaling.
 - [ ] First connection to a server asks you to trust its key (type `yes`); the second
       doesn't ask again.
 - [ ] Password login, saved and typed in the terminal.
@@ -121,7 +140,7 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 
 - [ ] **Windows:** Settings → Apps → Corestart Reach → Uninstall.
 - [ ] **Linux:** `flatpak uninstall io.github.thepoolboy.corestart-reach`
-- [ ] Your vault stays in place (see the README for where), so reinstalling keeps your
+- [ ] Your data file stays in place (see the README for where), so reinstalling keeps your
       connections. On Linux, `flatpak uninstall --delete-data io.github.thepoolboy.corestart-reach` removes
       it too.
 

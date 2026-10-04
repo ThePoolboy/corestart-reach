@@ -3,6 +3,7 @@
 A simple, modern RDP and SSH connection manager for Windows and Linux, in the spirit of
 mRemoteNG and Royal TS. Free and open source under GPL-3.0.
 
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on-GitHub-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/ThePoolboy)
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/thepoolboy)
 
 ![Corestart Reach with connections in folders](screenshots/main.png)
@@ -18,31 +19,33 @@ mRemoteNG and Royal TS. Free and open source under GPL-3.0.
   </tr>
 </table>
 
-- **One encrypted vault** for every host, username, password and note. Nothing is readable
-  without your master password.
+- **Everything encrypted**: every host, username, password and note is kept in one file that
+  nothing can read without your master password.
 - **RDP** opens in your system's own client: `mstsc` on Windows, FreeRDP on Linux.
-  Saved passwords are passed along, so you're logged straight in.
+  Saved passwords are passed along, so you're logged straight in. Use a window the remote
+  desktop follows, a fixed screen size, or full screen.
 - **SSH** opens in its own terminal window. Logs in with a saved password, a key file,
   your ssh-agent or your usual `~/.ssh` keys, or keyboard-interactive / 2FA prompts.
   Host keys are checked against `~/.ssh/known_hosts`, the same file OpenSSH uses.
 - **Quick connect** to any host without saving it (Ctrl+K).
 - **Saved credentials**: store a login once (e.g. a domain admin) and use it on many
   connections. Change the password in one place.
-- Folders with drag and drop, right-click menus, search, keyboard shortcuts, light and dark
-  themes.
+- Folders with drag and drop, right-click menus, search, keyboard shortcuts you can change,
+  light and dark themes.
 
 ## Status
 
-Early development (v0.1), ready for testing. RDP and SSH each open in their own window.
+Early development (0.2), ready for testing. RDP and SSH each open in their own window.
 Planned: import from mRemoteNG, tabs and embedded RDP.
 
 Tested on Windows 11, Fedora 44 Workstation, Fedora 44 KDE Plasma Desktop, Ubuntu Desktop
 26.04 and Linux Mint 22.3 Cinnamon. The Flatpak should also run on other Linux
 distributions.
 
-The vault **locks itself after 15 minutes without use** (change it or turn it off in
-Settings). Open RDP and SSH sessions keep running when it locks. The master password can be
-changed in Settings; the vault and its backup are re-encrypted with the new one.
+Reach **locks itself after 15 minutes without use** (change it or turn it off in
+**Settings → Security**). Open RDP and SSH sessions keep running when it locks. The master
+password can be changed there too; your saved data and its backup are re-encrypted with the
+new one.
 
 ## Install
 
@@ -59,7 +62,7 @@ included). Both keep themselves up to date.
   [Updates](#updates)).
 - **Everyone on a Windows computer:** choose "Anyone who uses this computer" in the installer, or
   install silently from an admin command prompt with `Corestart-Reach_<version>_x64-setup.exe /S /AllUsers`.
-  Each user still has their own vault. Updates then need an admin's approval.
+  Each user still has their own connections. Updates then need an admin's approval.
 - **Linux:** the `.flatpak` file on each release installs the same way
   (`flatpak install --user ./Corestart-Reach_<version>_x86_64.flatpak`) and also receives
   updates, from version 0.1.1 on. Fedora and Linux Mint have Flatpak and Flathub set up
@@ -82,13 +85,13 @@ to GitHub). See [TESTING.md](TESTING.md).
 
 | | |
 | --- | --- |
-| Vault file (Flatpak) | `~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/vault.json` (owner-only, 0600) |
-| Vault file (Linux, built from source) | `~/.local/share/io.github.thepoolboy.corestart-reach/vault.json` |
-| Vault file (Windows) | `%APPDATA%\io.github.thepoolboy.corestart-reach\vault.json` |
+| Data file (Flatpak) | `~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/vault.json` (owner-only, 0600) |
+| Data file (Linux, built from source) | `~/.local/share/io.github.thepoolboy.corestart-reach/vault.json` |
+| Data file (Windows) | `%APPDATA%\io.github.thepoolboy.corestart-reach\vault.json` |
 | Key derivation | Argon2id, 64 MiB memory, 3 passes, random 16-byte salt |
 | Encryption | XChaCha20-Poly1305, fresh random nonce on every save |
 | Backup | The previous version is kept as `vault.json.bak` on every save |
-| Settings | Inside the encrypted vault |
+| Settings | Inside the encrypted data file (Settings → About shows where it is) |
 | SSH host keys | `~/.ssh/known_hosts`, shared with OpenSSH |
 
 Passwords never reach the interface: it only knows whether one is saved. On Linux the
@@ -96,8 +99,8 @@ RDP password goes to FreeRDP through a pipe (`/args-from:stdin`), so it never ap
 the process list. On Windows it's stored as a session-only `TERMSRV/<host>` credential
 for mstsc (what `cmdkey` does), and Windows clears it when you sign out.
 
-**There is no password recovery.** If you forget the master password, the vault can't be
-opened.
+**There is no password recovery.** If you forget the master password, your saved
+connections can't be opened.
 
 Reach sends nothing anywhere except the RDP and SSH connections you open: no telemetry, no
 accounts. The one exception is the update check on Windows (see [Updates](#updates)). To report a security problem privately, see [SECURITY.md](SECURITY.md). Changes
@@ -110,7 +113,7 @@ Only one copy of Reach runs at a time; starting it again brings the open one for
 - **Windows:** Reach checks GitHub for a new version after you unlock it and every 12 hours.
   When there is one, a bar at the top offers **Update and restart**. Nothing is installed
   until you click it. The check downloads a small `latest.json` file from this repository's
-  newest release and sends nothing about you or your vault. Turn it off in
+  newest release and sends nothing about you or your connections. Turn it off in
   **Settings → Updates**, or check by hand with **Check now**. Reach only installs an update
   carrying the project's updater signature.
 - **Linux:** Reach's own Flatpak repository, on this project's GitHub Pages site, gets each
@@ -126,12 +129,15 @@ Only one copy of Reach runs at a time; starting it again brings the open one for
 | Ctrl+K | Quick connect |
 | Ctrl+N | New connection |
 | Ctrl+F | Search (Enter connects to the first match, or quick connects if none) |
-| Ctrl+L | Lock the vault |
+| Ctrl+L | Lock Reach |
 | Ctrl+, | Settings |
 | Ctrl+S | Save the open connection |
 | ↑ ↓ ← → / Enter | Move through the tree / connect |
 | Shift+F10 or Menu key | Right-click menu for the selected item |
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy / paste in an SSH window |
+
+The first six are the defaults. Change them in **Settings → Keyboard shortcuts**: click one and
+press the new keys.
 
 ## Building from source
 
@@ -155,9 +161,17 @@ npm run check                              # type-check the interface
 cd src-tauri && cargo clippy && cargo test # lint and test the Rust core
 ```
 
-For screenshots, `npm run demo-vault` creates a vault full of made-up connections (master
-password `demo-password`). It won't overwrite an existing vault, so move yours aside first.
-Set `REACH_DEMO_VAULT` to the vault path to fill another location, such as the Flatpak's.
+For screenshots, `npm run demo-vault` fills a data file with made-up connections (master
+password `demo-password`). On Linux, run it and the app with the same `XDG_DATA_HOME` to keep
+the sample apart from your own connections:
+
+```bash
+XDG_DATA_HOME=/tmp/reach-shots npm run demo-vault
+XDG_DATA_HOME=/tmp/reach-shots npm run tauri dev
+```
+
+It never overwrites an existing file. Set `REACH_DEMO_VAULT` to a file path to fill another
+location, such as the Flatpak's.
 
 The Flatpak is built with flatpak-builder; see [flatpak/README.md](flatpak/README.md).
 
@@ -171,10 +185,11 @@ src/                        interface (Svelte 5 + TypeScript)
   main.ts                   picks the main window or an SSH window from the URL
   lib/api.ts                typed wrappers for every Rust command
   lib/desktop.ts            turns off web-page behaviour (browser menu, F5 reload)
+  lib/shortcuts.ts          keyboard shortcuts and their defaults
   views/Workspace.svelte    sidebar tree, drag and drop, menus, panes
   views/SshSession.svelte   terminal window (xterm.js)
 src-tauri/                  Rust core (Tauri 2)
-  src/vault.rs              encrypted vault file
+  src/vault.rs              the encrypted data file
   src/model.rs              connections, folders, credentials
   src/rdp.rs                launch FreeRDP / mstsc
   src/ssh.rs                SSH sessions (russh)
@@ -202,6 +217,7 @@ flatpak/                    Flatpak recipe, app menu entry and store listing
 Reach is free and always will be: no paid edition, no ads, no locked features. If it saves
 you time, you can help keep it going. Donations are optional and don't unlock anything.
 
+- **[GitHub Sponsors](https://github.com/sponsors/ThePoolboy)**: monthly or one-off, with your GitHub account.
 - **[Ko-fi](https://ko-fi.com/thepoolboy)**: one-off or monthly, by card or PayPal.
 - **Crypto**: scan a code or copy the address. Check the address in your wallet before
   sending; crypto payments can't be reversed.

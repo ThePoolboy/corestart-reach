@@ -374,13 +374,17 @@ fn launch(app: &AppHandle, state: &AppState, target: Resolved) -> Result<Connect
             let title = format!("{} — SSH", target.name);
             let session = state.ssh.prepare(target);
             let url = format!("index.html?view=ssh&session={session}");
+            // Built hidden, then sized to its screen before it appears. 960×600
+            // is only used if the screen can't be read.
             let built = WebviewWindowBuilder::new(app, format!("ssh-{session}"), WebviewUrl::App(url.into()))
                 .title(title)
                 .inner_size(960.0, 600.0)
                 .min_inner_size(420.0, 260.0)
+                .visible(false)
                 .build();
             match built {
-                Ok(window) => crate::fit_to_screen(&window),
+                // The same size as an RDP window in Window mode: 80% of the screen.
+                Ok(window) => crate::show_sized(&window, 0.8),
                 Err(e) => {
                     state.ssh.close(&session);
                     return Err(e.into());
@@ -434,6 +438,7 @@ pub async fn ssh_answer(
 #[serde(rename_all = "lowercase")]
 pub enum Link {
     Source,
+    Sponsors,
     Kofi,
     Releases,
 }
@@ -442,6 +447,7 @@ impl Link {
     fn url(&self) -> &'static str {
         match self {
             Link::Source => "https://github.com/ThePoolboy/corestart-reach",
+            Link::Sponsors => "https://github.com/sponsors/ThePoolboy",
             Link::Kofi => "https://ko-fi.com/thepoolboy",
             Link::Releases => "https://github.com/ThePoolboy/corestart-reach/releases/latest",
         }

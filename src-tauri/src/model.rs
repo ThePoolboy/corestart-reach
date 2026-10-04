@@ -3,6 +3,8 @@
 //! Passwords never leave the Rust side: the UI only sees `has_password` flags and
 //! sends back a [`SecretUpdate`] saying whether to keep, clear or replace a secret.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -31,11 +33,14 @@ pub struct Settings {
     /// Look for a new version after unlocking and every 12 hours (Windows only;
     /// Flatpak updates the Linux version).
     pub check_for_updates: bool,
+    /// Keyboard shortcuts the user changed, by action: `"quickConnect": "Ctrl+J"`.
+    /// The actions and their defaults live in the interface (lib/shortcuts.ts).
+    pub shortcuts: BTreeMap<String, String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { auto_lock_minutes: 15, check_for_updates: true }
+        Self { auto_lock_minutes: 15, check_for_updates: true, shortcuts: BTreeMap::new() }
     }
 }
 
@@ -43,6 +48,11 @@ impl Settings {
     pub fn validate(&self) -> Result<()> {
         if self.auto_lock_minutes > 24 * 60 {
             return Err(msg("Auto-lock can be at most 24 hours."));
+        }
+        // The interface checks what keys make sense; this only keeps junk out.
+        let sane = |s: &String| !s.is_empty() && s.len() <= 40 && !s.contains(char::is_control);
+        if self.shortcuts.len() > 32 || !self.shortcuts.iter().all(|(action, keys)| sane(action) && sane(keys)) {
+            return Err(msg("Those keyboard shortcuts can't be saved."));
         }
         Ok(())
     }
@@ -647,7 +657,24 @@ mod tests {
     #[test]
     fn older_vaults_get_update_checks_on() {
         let settings: Settings = serde_json::from_str(r#"{"autoLockMinutes":5}"#).unwrap();
-        assert_eq!(settings, Settings { auto_lock_minutes: 5, check_for_updates: true });
+        assert_eq!(settings, Settings { auto_lock_minutes: 5, ..Settings::default() });
+    }
+
+    #[test]
+    fn shortcut_settings_are_sanity_checked() {
+        let with = |action: &str, keys: &str| Settings {
+            shortcuts: BTreeMap::from([(action.to_string(), keys.to_string())]),
+            ..Settings::default()
+        };
+        assert!(with("quickConnect", "Ctrl+J").validate().is_ok());
+        assert!(with("quickConnect", "").validate().is_err());
+        assert!(with("quickConnect", "Ctrl+\nJ").validate().is_err());
+        assert!(with("quickConnect", &"K".repeat(41)).validate().is_err());
+        let many = Settings {
+            shortcuts: (0..33).map(|i| (format!("a{i}"), "Ctrl+J".to_string())).collect(),
+            ..Settings::default()
+        };
+        assert!(many.validate().is_err());
     }
 
     #[test]

@@ -6,6 +6,7 @@
   import ethereumQr from '../../assets/donate/ethereum.png';
   import { api, errorText, type Tree } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
+  import { SHORTCUTS, defaultKeys, keysFor, keysOf, problemWith, type ShortcutAction } from '../lib/shortcuts';
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte';
   import { toast } from '../lib/toast.svelte';
   import { checkForUpdate, updates } from '../lib/update.svelte';
@@ -29,8 +30,11 @@
   ];
 
   let version = $state('');
+  /** Where the data file is, for backups. */
+  let vaultPath = $state('');
   onMount(async () => {
     version = await getVersion().catch(() => '');
+    vaultPath = (await api.vaultStatus().catch(() => null))?.path ?? '';
   });
 
   async function setAutoLock(e: Event) {
@@ -38,6 +42,58 @@
     try {
       onchange(await api.saveSettings({ ...tree.settings, autoLockMinutes: minutes }));
       toast(minutes ? 'Auto-lock updated.' : 'Auto-lock turned off.');
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  // ---- keyboard shortcuts ----
+  /** The shortcut waiting for its new keys, if any. */
+  let recording = $state<ShortcutAction | null>(null);
+  let keysError = $state('');
+
+  function startRecording(action: ShortcutAction) {
+    keysError = '';
+    recording = recording === action ? null : action;
+  }
+
+  function stopRecording() {
+    recording = null;
+    keysError = '';
+  }
+
+  // While recording, the next key press is the new shortcut rather than a
+  // command, so it's caught before the window's own shortcuts see it.
+  $effect(() => {
+    const action = recording;
+    if (!action) return;
+    const onKey = (e: KeyboardEvent) => {
+      const plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+      if (plain && e.key === 'Tab') return stopRecording(); // Tab still moves on
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (plain && e.key === 'Escape') return stopRecording();
+      const keys = keysOf(e);
+      if (!keys) return; // only modifiers so far
+      const problem = problemWith(e, keys, action, tree.settings);
+      if (problem) {
+        keysError = problem;
+        return;
+      }
+      stopRecording();
+      saveShortcut(action, keys);
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
+  });
+
+  /** Keep only the shortcuts that differ from their defaults. */
+  async function saveShortcut(action: ShortcutAction, keys: string) {
+    const shortcuts = { ...tree.settings.shortcuts };
+    if (keys === defaultKeys(action)) delete shortcuts[action];
+    else shortcuts[action] = keys;
+    try {
+      onchange(await api.saveSettings({ ...tree.settings, shortcuts }));
     } catch (err) {
       toast(errorText(err), 'error');
     }
@@ -67,8 +123,9 @@
     { name: 'Ethereum (ETH)', address: '0xB968531aa4f6EaE2c2c479B56b111c8B3B5c6C54', qr: ethereumQr },
   ];
   let showQr = $state(false);
+  let showCrypto = $state(false);
 
-  async function openLink(link: 'source' | 'kofi') {
+  async function openLink(link: 'source' | 'sponsors' | 'kofi') {
     try {
       await api.openLink(link);
     } catch (err) {
@@ -90,12 +147,24 @@
   let next = $state('');
   let confirm = $state('');
   let reveal = $state(false);
+  let changing = $state(false);
   let busy = $state(false);
   let error = $state('');
 
   const MIN = 8;
   const mismatch = $derived(confirm.length > 0 && confirm !== next);
   const canChange = $derived(!busy && current !== '' && next.length >= MIN && confirm === next);
+
+  function cancelChange() {
+    changing = false;
+    reveal = false;
+    error = '';
+    current = next = confirm = '';
+  }
+
+  function focus(node: HTMLInputElement) {
+    node.focus();
+  }
 
   async function changePassword(e: SubmitEvent) {
     e.preventDefault();
@@ -104,7 +173,7 @@
     error = '';
     try {
       await api.vaultChangePassword(current, next);
-      current = next = confirm = '';
+      cancelChange();
       toast('Master password changed.');
     } catch (err) {
       error = errorText(err);
@@ -117,10 +186,7 @@
 <div class="pane">
   <header>
     <div class="icon"><Icon name="settings" size={22} /></div>
-    <div>
-      <h1>Settings</h1>
-      <div class="sub">Stored inside your encrypted vault.</div>
-    </div>
+    <h1>Settings</h1>
   </header>
 
   <div class="scroll">
@@ -139,17 +205,13 @@
             >
           {/each}
         </div>
-        <span class="hint">
-          System follows your desktop's light or dark setting. Saved on this computer, so the lock screen uses it
-          too. SSH windows stay dark.
-        </span>
       </div>
     </section>
 
     <section>
       <h2>Security</h2>
       <label class="field">
-        <span>Lock the vault when idle</span>
+        <span>Lock Reach when idle</span>
         <select class="input" value={String(tree.settings.autoLockMinutes)} onchange={setAutoLock}>
           {#each AUTO_LOCK as o (o.minutes)}
             <option value={String(o.minutes)}>{o.label}</option>
@@ -158,11 +220,59 @@
             <option value={String(tree.settings.autoLockMinutes)}>After {tree.settings.autoLockMinutes} minutes</option>
           {/if}
         </select>
-        <span class="hint">
-          Counts time you're not using the Reach window, including while the computer sleeps. Open RDP and SSH
-          sessions keep running when it locks.
-        </span>
+        <span class="hint">Open RDP and SSH sessions keep running after Reach locks.</span>
       </label>
+      {#if !changing}
+        <div class="buttons">
+          <button type="button" class="btn" onclick={() => (changing = true)}>Change master password…</button>
+        </div>
+      {:else}
+        <form class="form" onsubmit={changePassword}>
+          <label class="field">
+            <span>Current password</span>
+            <input
+              class="input"
+              type={reveal ? 'text' : 'password'}
+              bind:value={current}
+              autocomplete="current-password"
+              use:focus
+            />
+          </label>
+          <div class="row">
+            <label class="field">
+              <span>New password</span>
+              <input class="input" type={reveal ? 'text' : 'password'} bind:value={next} autocomplete="new-password" />
+              {#if next.length > 0 && next.length < MIN}
+                <span class="hint">At least {MIN} characters.</span>
+              {/if}
+            </label>
+            <label class="field">
+              <span>Confirm new password</span>
+              <input class="input" type={reveal ? 'text' : 'password'} bind:value={confirm} autocomplete="new-password" />
+              {#if mismatch}
+                <span class="hint warn">Passwords don't match.</span>
+              {/if}
+            </label>
+          </div>
+          {#if error}
+            <div class="error-text">{error}</div>
+          {/if}
+          <div class="buttons">
+            <button type="button" class="btn ghost" onclick={() => (reveal = !reveal)}>
+              {reveal ? 'Hide passwords' : 'Show passwords'}
+            </button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" onclick={cancelChange}>Cancel</button>
+            <button type="submit" class="btn primary" disabled={!canChange}>
+              {busy ? 'Changing…' : 'Change password'}
+            </button>
+          </div>
+          <p class="hint">
+            Re-encrypts your saved data and its backup with the new password. There is still no way to recover it if
+            you forget it.
+          </p>
+        </form>
+      {/if}
     </section>
 
     <section>
@@ -170,26 +280,23 @@
       {#if updates.supported}
         <div class="field">
           <span id="updates-label">Check for updates</span>
-          <div class="segmented" role="radiogroup" aria-labelledby="updates-label">
-            {#each [true, false] as on (on)}
-              <button
-                type="button"
-                role="radio"
-                aria-checked={tree.settings.checkForUpdates === on}
-                class:on={tree.settings.checkForUpdates === on}
-                onclick={() => setCheckForUpdates(on)}>{on ? 'Automatically' : 'Only when I ask'}</button
-              >
-            {/each}
+          <div class="buttons">
+            <div class="segmented" role="radiogroup" aria-labelledby="updates-label">
+              {#each [true, false] as on (on)}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={tree.settings.checkForUpdates === on}
+                  class:on={tree.settings.checkForUpdates === on}
+                  onclick={() => setCheckForUpdates(on)}>{on ? 'Automatically' : 'Only when I ask'}</button
+                >
+              {/each}
+            </div>
+            <button type="button" class="btn" disabled={updates.checking} onclick={checkNow}>
+              {updates.checking ? 'Checking…' : 'Check now'}
+            </button>
           </div>
-          <span class="hint">
-            Reach asks GitHub whether a new version is out after you unlock it and every 12 hours. Nothing about you
-            or your vault is sent. Updates are only installed when you choose to.
-          </span>
-        </div>
-        <div class="buttons">
-          <button type="button" class="btn" disabled={updates.checking} onclick={checkNow}>
-            {updates.checking ? 'Checking…' : 'Check now'}
-          </button>
+          <span class="hint">Reach asks GitHub after you unlock it and every 12 hours. Nothing about you is sent.</span>
         </div>
       {:else}
         <p class="about">Your software center (or <code>flatpak update</code>) installs updates for Reach.</p>
@@ -197,45 +304,36 @@
     </section>
 
     <section>
-      <h2>Master password</h2>
-      <form class="form" onsubmit={changePassword}>
-        <label class="field">
-          <span>Current password</span>
-          <input class="input" type={reveal ? 'text' : 'password'} bind:value={current} autocomplete="current-password" />
-        </label>
-        <div class="row">
-          <label class="field">
-            <span>New password</span>
-            <input class="input" type={reveal ? 'text' : 'password'} bind:value={next} autocomplete="new-password" />
-            {#if next.length > 0 && next.length < MIN}
-              <span class="hint">At least {MIN} characters.</span>
-            {/if}
-          </label>
-          <label class="field">
-            <span>Confirm new password</span>
-            <input class="input" type={reveal ? 'text' : 'password'} bind:value={confirm} autocomplete="new-password" />
-            {#if mismatch}
-              <span class="hint warn">Passwords don't match.</span>
-            {/if}
-          </label>
-        </div>
-        {#if error}
-          <div class="error-text">{error}</div>
-        {/if}
-        <div class="buttons">
-          <button type="button" class="btn ghost" onclick={() => (reveal = !reveal)}>
-            {reveal ? 'Hide passwords' : 'Show passwords'}
+      <h2>Keyboard shortcuts</h2>
+      <div class="shortcuts">
+        {#each SHORTCUTS as s (s.action)}
+          {@const keys = keysFor(tree.settings, s.action)}
+          <span>{s.label}</span>
+          <button
+            type="button"
+            class="keys"
+            class:recording={recording === s.action}
+            aria-label="{s.label}: {keys}. Change"
+            onclick={() => startRecording(s.action)}
+            onblur={() => recording === s.action && stopRecording()}
+          >
+            {recording === s.action ? 'Press keys…' : keys}
           </button>
-          <span class="spacer"></span>
-          <button type="submit" class="btn primary" disabled={!canChange}>
-            {busy ? 'Changing…' : 'Change password'}
-          </button>
-        </div>
-        <p class="hint">
-          Re-encrypts the vault and its backup with the new password. There is still no way to recover it if you
-          forget it.
-        </p>
-      </form>
+          <span>
+            {#if keys !== s.keys}
+              <button type="button" class="btn ghost" title="Back to {s.keys}" onclick={() => saveShortcut(s.action, s.keys)}>
+                Reset
+              </button>
+            {/if}
+          </span>
+        {/each}
+        <span>Copy / paste in SSH windows</span>
+        <span class="keys fixed">Ctrl+Shift+C / V</span>
+        <span></span>
+      </div>
+      <p class="hint" class:warn={keysError !== ''} aria-live="polite">
+        {keysError || (recording ? 'Press the new keys, or Escape to cancel.' : 'Click a shortcut to change it.')}
+      </p>
     </section>
 
     <section>
@@ -243,6 +341,9 @@
       <p class="about">
         Corestart Reach{version ? ` ${version}` : ''} · Free software under the GPL-3.0 license.
       </p>
+      {#if vaultPath}
+        <p class="hint">Data file: <span class="path">{vaultPath}</span></p>
+      {/if}
       <div class="buttons">
         <button type="button" class="btn" onclick={() => openLink('source')}>Source code on GitHub</button>
       </div>
@@ -250,39 +351,42 @@
 
     <section>
       <h2>Support Reach</h2>
-      <p class="about">
-        Reach is free and always will be. If it saves you time, you can help keep it going. Donations are optional
-        and don't unlock anything.
-      </p>
+      <p class="about">Reach is free and always will be. Donations are optional and don't unlock anything.</p>
       <div class="buttons">
+        <button type="button" class="btn" onclick={() => openLink('sponsors')}>Sponsor on GitHub</button>
         <button type="button" class="btn" onclick={() => openLink('kofi')}>Support on Ko-fi</button>
-      </div>
-      <div class="wallets">
-        {#each WALLETS as w (w.name)}
-          <div class="wallet">
-            <span class="wallet-name">{w.name}</span>
-            <code class="address">{w.address}</code>
-            <button
-              type="button"
-              class="btn icon"
-              title="Copy {w.name} address"
-              aria-label="Copy {w.name} address"
-              onclick={() => copyAddress(w.name, w.address)}
-            >
-              <Icon name="copy" size={16} />
-            </button>
-            {#if showQr}
-              <img class="qr" src={w.qr} alt="{w.name} QR code" width="140" height="140" />
-            {/if}
-          </div>
-        {/each}
-      </div>
-      <div class="buttons">
-        <button type="button" class="btn ghost" onclick={() => (showQr = !showQr)}>
-          {showQr ? 'Hide QR codes' : 'Show QR codes'}
+        <button type="button" class="btn ghost" aria-expanded={showCrypto} onclick={() => (showCrypto = !showCrypto)}>
+          {showCrypto ? 'Hide crypto addresses' : 'Donate with crypto'}
         </button>
       </div>
-      <p class="hint">Check the address in your wallet before sending. Crypto payments can't be reversed.</p>
+      {#if showCrypto}
+        <div class="wallets">
+          {#each WALLETS as w (w.name)}
+            <div class="wallet">
+              <span class="wallet-name">{w.name}</span>
+              <code class="address">{w.address}</code>
+              <button
+                type="button"
+                class="btn icon"
+                title="Copy {w.name} address"
+                aria-label="Copy {w.name} address"
+                onclick={() => copyAddress(w.name, w.address)}
+              >
+                <Icon name="copy" size={16} />
+              </button>
+              {#if showQr}
+                <img class="qr" src={w.qr} alt="{w.name} QR code" width="140" height="140" />
+              {/if}
+            </div>
+          {/each}
+        </div>
+        <div class="buttons">
+          <button type="button" class="btn ghost" onclick={() => (showQr = !showQr)}>
+            {showQr ? 'Hide QR codes' : 'Show QR codes'}
+          </button>
+        </div>
+        <p class="hint">Check the address in your wallet before sending. Crypto payments can't be reversed.</p>
+      {/if}
     </section>
   </div>
 </div>
@@ -308,10 +412,6 @@
     margin: 0;
     font-size: 20px;
   }
-  .sub {
-    color: var(--text-dim);
-    font-size: 12.5px;
-  }
   .scroll {
     flex: 1;
     overflow-y: auto;
@@ -322,11 +422,7 @@
     flex-direction: column;
     gap: 14px;
     max-width: 640px;
-    padding: 18px 0;
-    border-bottom: 1px solid var(--line);
-  }
-  section:last-child {
-    border-bottom: 0;
+    padding: 18px 0 10px;
   }
   h2 {
     margin: 0;
@@ -360,11 +456,50 @@
   .warn {
     color: var(--danger) !important;
   }
+  .path {
+    overflow-wrap: anywhere;
+    user-select: text;
+    -webkit-user-select: text;
+  }
   .about {
     margin: 0;
     color: var(--text-dim);
     user-select: text;
     -webkit-user-select: text;
+  }
+  .shortcuts {
+    display: grid;
+    grid-template-columns: 1fr auto 72px;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .keys {
+    min-width: 104px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 28px;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .keys:hover {
+    border-color: var(--text-faint);
+  }
+  .keys.recording {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(35, 160, 243, 0.2);
+  }
+  .keys.fixed {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: default;
   }
   .wallets {
     display: flex;

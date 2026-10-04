@@ -18,9 +18,9 @@ update to it.
 
 ## How Reach protects your data
 
-- The vault is one file encrypted with your master password: Argon2id (64 MiB, 3 passes)
-  derives the key, and XChaCha20-Poly1305 encrypts everything, including host names and
-  notes.
+- Everything you save is one file encrypted with your master password: Argon2id (64 MiB,
+  3 passes) derives the key, and XChaCha20-Poly1305 encrypts everything, including host names
+  and notes.
 - Passwords never reach the interface; it only learns whether one is saved.
 - The RDP password goes to FreeRDP through a pipe (Linux) or a session-only Windows
   credential (Windows), never on a command line.

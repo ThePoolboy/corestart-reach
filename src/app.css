@@ -203,9 +203,6 @@ select.input {
   gap: 14px;
   grid-template-columns: 1fr 1fr;
 }
-.row.host {
-  grid-template-columns: 1fr 110px;
-}
 
 /* Segmented control, e.g. RDP | SSH */
 .segmented {
@@ -230,27 +227,6 @@ select.input {
   color: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   font-weight: 600;
-}
-
-/* Protocol badge */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.badge.rdp {
-  color: var(--rdp);
-  background: color-mix(in srgb, var(--rdp) 15%, transparent);
-}
-.badge.ssh {
-  color: var(--ssh);
-  background: color-mix(in srgb, var(--ssh) 15%, transparent);
 }
 
 /* ---- Modal ------------------------------------------------------------ */

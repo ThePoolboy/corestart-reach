@@ -14,6 +14,8 @@
   } from '../lib/api';
   import { folderOptions } from '../lib/tree';
   import Icon from '../lib/Icon.svelte';
+  import { pressed } from '../lib/shortcuts';
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
   import SecretField from './SecretField.svelte';
 
   /** Common screen sizes for a fixed-size RDP screen. */
@@ -32,6 +34,13 @@
     [3840, 2160],
   ].map(([w, h]) => `${w}x${h}`);
 
+  /** What each screen mode does, shown as the buttons' tooltips. */
+  const SCREEN_TIPS: Record<RdpScreen, string> = {
+    window: 'The remote desktop resizes to fit the window',
+    fixed: 'The remote desktop keeps one size; resizing the window scales the picture',
+    fullscreen: 'The remote desktop fills the whole screen',
+  };
+
   let {
     tree,
     connection,
@@ -42,6 +51,7 @@
     onduplicate,
     ondelete,
     oncancel,
+    oneditcredential,
   }: {
     tree: Tree;
     /** null when creating a new connection */
@@ -53,6 +63,7 @@
     onduplicate: (id: string) => void;
     ondelete: (c: Connection) => void;
     oncancel: () => void;
+    oneditcredential: (id: string) => void;
   } = $props();
 
   // The parent remounts this editor for each connection, so capture it once.
@@ -168,10 +179,35 @@
   }
 
   function keydown(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    if (pressed(e, tree.settings, 'save')) {
       e.preventDefault();
       if (isNew || dirty) save();
     }
+  }
+
+  /** The "⋯" menu: the rarely used actions, out of the header. */
+  let menu = $state<{ x: number; y: number } | null>(null);
+  let moreButton = $state<HTMLButtonElement>();
+  const menuItems = $derived<MenuItem[]>(
+    connection
+      ? [
+          { label: 'Duplicate', icon: 'copy', action: () => onduplicate(connection.id) },
+          'separator',
+          { label: 'Delete', icon: 'trash', danger: true, action: () => ondelete(connection) },
+        ]
+      : [],
+  );
+
+  function toggleMenu(e: MouseEvent) {
+    if (menu) return closeMenu();
+    // Right-aligned under the button (the menu is 200px wide).
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    menu = { x: r.right - 200, y: r.bottom + 4 };
+  }
+
+  function closeMenu() {
+    menu = null;
+    moreButton?.focus();
   }
 
   function focus(node: HTMLInputElement) {
@@ -184,21 +220,27 @@
 <form class="editor" onsubmit={save}>
   <header>
     <div class="title">
-      <span class="badge {form.protocol}">{form.protocol}</span>
-      <div class="names">
-        <h1>{isNew ? `New ${form.protocol.toUpperCase()} connection` : connection?.name}</h1>
-        {#if !isNew && connection}
-          <div class="sub">{connection.host}:{connection.port ?? defaultPort}</div>
-        {/if}
-      </div>
+      <span class="proto {form.protocol}">
+        <Icon name={form.protocol === 'rdp' ? 'monitor' : 'terminal'} size={20} />
+      </span>
+      <h1>{isNew ? `New ${form.protocol.toUpperCase()} connection` : connection?.name}</h1>
     </div>
     {#if connection}
       <div class="actions">
-        <button type="button" class="btn ghost icon" title="Duplicate" onclick={() => onduplicate(connection.id)}>
-          <Icon name="copy" />
-        </button>
-        <button type="button" class="btn ghost icon danger" title="Delete" onclick={() => ondelete(connection)}>
-          <Icon name="trash" />
+        <!-- While the menu is open, pressing the button closes it rather than
+             letting the menu's outside-click close it and the click reopen it. -->
+        <button
+          type="button"
+          class="btn ghost icon"
+          title="More actions"
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={menu !== null}
+          bind:this={moreButton}
+          onmousedown={(e) => menu && e.stopPropagation()}
+          onclick={toggleMenu}
+        >
+          <Icon name="more" />
         </button>
         <button
           type="button"
@@ -221,15 +263,24 @@
           <span>Name</span>
           <input class="input" bind:value={form.name} placeholder={form.host || 'e.g. Web server 1'} />
         </label>
-        <div class="field">
-          <span>Protocol</span>
-          <div class="segmented">
-            <button type="button" class:on={form.protocol === 'rdp'} onclick={() => (form.protocol = 'rdp')}>RDP</button>
-            <button type="button" class:on={form.protocol === 'ssh'} onclick={() => (form.protocol = 'ssh')}>SSH</button>
-          </div>
-        </div>
+        <label class="field">
+          <span>Folder</span>
+          <select class="input" bind:value={form.folderId}>
+            <option value="">(No folder)</option>
+            {#each folders as f (f.id)}
+              <option value={f.id}>{f.label}</option>
+            {/each}
+          </select>
+        </label>
       </div>
-      <div class="row host">
+      <div class="row address">
+        <label class="field">
+          <span>Protocol</span>
+          <select class="input" bind:value={form.protocol}>
+            <option value="rdp">RDP</option>
+            <option value="ssh">SSH</option>
+          </select>
+        </label>
         <label class="field">
           <span>Host</span>
           <input class="input" bind:value={form.host} placeholder="server.example.com or 10.0.0.5" spellcheck="false" use:focus />
@@ -239,36 +290,30 @@
           <input class="input" bind:value={form.port} placeholder={String(defaultPort)} inputmode="numeric" />
         </label>
       </div>
-      <label class="field">
-        <span>Folder</span>
-        <select class="input" bind:value={form.folderId}>
-          <option value="">(No folder)</option>
-          {#each folders as f (f.id)}
-            <option value={f.id}>{f.label}</option>
-          {/each}
-        </select>
-      </label>
     </section>
 
     <section>
       <h2>Login</h2>
       <label class="field">
         <span>Credentials</span>
-        <select class="input" bind:value={form.credentialId}>
-          <option value="">Enter below</option>
-          {#each tree.credentials as c (c.id)}
-            <option value={c.id}>{c.name}{c.username ? ` (${c.username})` : ''}</option>
-          {/each}
-        </select>
+        <div class="with-button">
+          <select class="input" bind:value={form.credentialId}>
+            <option value="">Enter below</option>
+            {#each tree.credentials as c (c.id)}
+              <option value={c.id}>
+                {c.name}{c.username ? ` (${c.domain ? c.domain + '\\' : ''}${c.username})` : ''}
+              </option>
+            {/each}
+          </select>
+          {#if credential}
+            <button type="button" class="btn" title="Edit this saved credential" onclick={() => oneditcredential(credential.id)}>
+              Edit
+            </button>
+          {/if}
+        </div>
       </label>
 
-      {#if credential}
-        <p class="using">
-          <Icon name="key" /> Uses the saved credential <strong>{credential.name}</strong>
-          {credential.username ? `(${credential.domain ? credential.domain + '\\' : ''}${credential.username})` : ''}.
-          Edit it under Credentials.
-        </p>
-      {:else}
+      {#if !credential}
         <div class="row">
           <label class="field">
             <span>Username</span>
@@ -286,7 +331,7 @@
             label="Password"
             saved={connection?.hasPassword ?? false}
             bind:value={password}
-            hint="Leave empty to be asked each time you connect."
+            placeholder="Ask when connecting"
           />
         {/key}
       {/if}
@@ -295,7 +340,7 @@
         <label class="field">
           <span>Private key file</span>
           <div class="with-button">
-            <input class="input" bind:value={form.sshKeyPath} placeholder="Optional. Without one, your ssh-agent and ~/.ssh keys are tried." spellcheck="false" />
+            <input class="input" bind:value={form.sshKeyPath} placeholder="Optional: ssh-agent and ~/.ssh keys are tried" spellcheck="false" />
             <button type="button" class="btn" onclick={browseKey}>Browse…</button>
           </div>
         </label>
@@ -305,7 +350,7 @@
               label="Key passphrase"
               saved={connection?.hasKeyPassphrase ?? false}
               bind:value={passphrase}
-              hint="Leave empty if the key has none, or to be asked when connecting."
+              placeholder="None, or ask when connecting"
             />
           {/key}
         {/if}
@@ -317,50 +362,33 @@
         <h2>Display</h2>
         <div class="field">
           <span>Screen</span>
-          <div class="segmented">
-            <button type="button" class:on={form.rdpScreen === 'window'} onclick={() => (form.rdpScreen = 'window')}>
-              Window
-            </button>
-            <button type="button" class:on={form.rdpScreen === 'fixed'} onclick={() => (form.rdpScreen = 'fixed')}>
-              Fixed size
-            </button>
-            <button type="button" class:on={form.rdpScreen === 'fullscreen'} onclick={() => (form.rdpScreen = 'fullscreen')}>
-              Full screen
-            </button>
-          </div>
-          <span class="hint">
-            {#if form.rdpScreen === 'window'}
-              The remote desktop resizes to fit when you resize the window.
-            {:else if form.rdpScreen === 'fixed'}
-              The remote desktop keeps this size. Resizing the window scales the picture to fit.
-            {:else}
-              The remote desktop fills the screen.
-            {/if}
-          </span>
-        </div>
-        {#if form.rdpScreen === 'fixed'}
-          <div class="row size">
-            <label class="field">
-              <span>Size</span>
-              <select class="input" value={sizeChoice} onchange={(e) => pickSize(e.currentTarget.value)}>
+          <div class="screen">
+            <div class="segmented">
+              <button type="button" title={SCREEN_TIPS.window} class:on={form.rdpScreen === 'window'} onclick={() => (form.rdpScreen = 'window')}>
+                Window
+              </button>
+              <button type="button" title={SCREEN_TIPS.fixed} class:on={form.rdpScreen === 'fixed'} onclick={() => (form.rdpScreen = 'fixed')}>
+                Fixed size
+              </button>
+              <button type="button" title={SCREEN_TIPS.fullscreen} class:on={form.rdpScreen === 'fullscreen'} onclick={() => (form.rdpScreen = 'fullscreen')}>
+                Full screen
+              </button>
+            </div>
+            {#if form.rdpScreen === 'fixed'}
+              <select class="input size" aria-label="Screen size" value={sizeChoice} onchange={(e) => pickSize(e.currentTarget.value)}>
                 {#each SIZES as size (size)}
                   <option value={size}>{size.replace('x', ' × ')}</option>
                 {/each}
                 <option value="custom">Custom…</option>
               </select>
-            </label>
-            {#if customSize}
-              <label class="field">
-                <span>Width</span>
-                <input class="input" bind:value={form.rdpWidth} inputmode="numeric" placeholder="1920" />
-              </label>
-              <label class="field">
-                <span>Height</span>
-                <input class="input" bind:value={form.rdpHeight} inputmode="numeric" placeholder="1080" />
-              </label>
+              {#if customSize}
+                <input class="input num" aria-label="Width" bind:value={form.rdpWidth} inputmode="numeric" placeholder="1920" />
+                <span class="times">×</span>
+                <input class="input num" aria-label="Height" bind:value={form.rdpHeight} inputmode="numeric" placeholder="1080" />
+              {/if}
             {/if}
           </div>
-        {/if}
+        </div>
       </section>
     {/if}
 
@@ -386,6 +414,10 @@
   {/if}
 </form>
 
+{#if menu}
+  <ContextMenu x={menu.x} y={menu.y} items={menuItems} onclose={closeMenu} />
+{/if}
+
 <style>
   .editor {
     height: 100%;
@@ -398,7 +430,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 20px 28px 16px;
+    padding: 18px 28px 16px;
     border-bottom: 1px solid var(--line);
   }
   .title {
@@ -407,8 +439,21 @@
     gap: 12px;
     min-width: 0;
   }
-  .names {
-    min-width: 0;
+  .proto {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius);
+  }
+  .proto.rdp {
+    color: var(--rdp);
+    background: color-mix(in srgb, var(--rdp) 14%, transparent);
+  }
+  .proto.ssh {
+    color: var(--ssh);
+    background: color-mix(in srgb, var(--ssh) 14%, transparent);
   }
   h1 {
     margin: 0;
@@ -416,13 +461,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .sub {
-    color: var(--text-dim);
-    font-family: var(--mono);
-    font-size: 12.5px;
-    user-select: text;
-    -webkit-user-select: text;
   }
   .actions {
     display: flex;
@@ -433,18 +471,14 @@
   .scroll {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 28px 28px;
+    padding: 6px 28px 28px;
   }
   section {
     display: flex;
     flex-direction: column;
     gap: 14px;
     max-width: 640px;
-    padding: 18px 0;
-    border-bottom: 1px solid var(--line);
-  }
-  section:last-child {
-    border-bottom: 0;
+    padding: 18px 0 10px;
   }
   h2 {
     margin: 0;
@@ -454,8 +488,8 @@
     text-transform: uppercase;
     color: var(--text-faint);
   }
-  .row.size {
-    grid-template-columns: 1fr 110px 110px;
+  .row.address {
+    grid-template-columns: 96px 1fr 110px;
   }
   .with-button {
     display: flex;
@@ -464,19 +498,20 @@
   .with-button .input {
     flex: 1;
   }
-  .using {
+  .screen {
     display: flex;
-    align-items: center;
-    gap: 6px;
     flex-wrap: wrap;
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-hover);
-    color: var(--text-dim);
+    align-items: center;
+    gap: 8px;
   }
-  .using :global(svg) {
-    color: var(--accent);
+  .screen .size {
+    width: 150px;
+  }
+  .screen .num {
+    width: 76px;
+  }
+  .times {
+    color: var(--text-faint);
   }
   footer {
     display: flex;

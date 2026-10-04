@@ -8,9 +8,32 @@
 - Windows: an RDP window in **Window** mode no longer opens bigger than the screen, with
   scroll bars, on laptops with display scaling (125%, 150%…) or a bigger second monitor.
   It starts at 80% of the smallest screen, after scaling
-- Windows: mstsc has no switches for these, so before every connection Reach sets dynamic
-  resolution and smart sizing in mstsc's `Documents\Default.rdp` to match the screen mode
-  (as 0.1.2 did, now also for Fixed size)
+- Windows: mstsc has no switches for dynamic resolution or smart sizing, so before every
+  connection Reach sets them in mstsc's `Documents\Default.rdp` to match the screen mode (as
+  0.1.2 did, now also for Fixed size)
+- SSH windows open centred at 80% of the screen, the same size as RDP windows in **Window**
+  mode (they were 960×600)
+- **Keyboard shortcuts** in Settings: see them all and click one to change it. **Reset** goes
+  back to the default, and tooltips and the search box show your keys
+- A calmer interface with the same features. The sidebar shows a small monitor (RDP) or
+  terminal (SSH) icon instead of a text tag, counts only on closed folders, and no repeated
+  logo and name; the lock button sits at the end of the search row
+- Connections: Duplicate and Delete are in the **⋯** menu next to Connect (and still on
+  right-click). Protocol sits next to Host and Port, a saved credential has an **Edit** button,
+  and hints became tooltips or grey text in empty boxes
+- Home shows how many connections you have, with **Quick connect** and **New connection**
+- The lock screen keeps its look with less on it: the logo, the master password and
+  **Unlock**. Reach now talks about your connections rather than a "vault"
+- Settings: a clearer order, with auto-lock and the master password together under Security.
+  Changing the master password and the crypto addresses each open from a button, and About
+  shows where Reach keeps its data file. The sun/moon button is gone; choose Light or Dark
+  under Appearance
+- Settings → Support Reach links to [GitHub Sponsors](https://github.com/sponsors/ThePoolboy)
+  as well as Ko-fi
+- A clearer app icon: the charcoal tile has a blue rim and a bolder symbol, so it no longer
+  fades into dark taskbars
+- Once a connection uses **Fixed size**, Reach 0.1.x can't open your saved connections any
+  more, so don't go back to an older version after using it
 
 ## 0.1.2 (2026-10-02)
 

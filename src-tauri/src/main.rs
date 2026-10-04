@@ -11,23 +11,50 @@ mod ssh;
 mod update;
 mod vault;
 
-use tauri::{AppHandle, Emitter, Manager, PhysicalSize, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, Monitor, PhysicalSize, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
 
 use commands::AppState;
+
+/// The screen a window is on, or the primary one.
+fn screen_of(window: &WebviewWindow) -> Option<Monitor> {
+    match window.current_monitor() {
+        Ok(Some(m)) => Some(m),
+        _ => window.primary_monitor().ok().flatten(),
+    }
+}
+
+/// The part of a screen windows can use. Wayland may not report a work area;
+/// then it's the full screen.
+fn usable_area(monitor: &Monitor) -> PhysicalSize<u32> {
+    let area = monitor.work_area().size;
+    if area.width > 0 && area.height > 0 { area } else { *monitor.size() }
+}
+
+/// `share` of a screen area, e.g. 0.8 for 80%.
+fn share_of(area: PhysicalSize<u32>, share: f64) -> PhysicalSize<u32> {
+    let part = |px: u32| (f64::from(px) * share).round() as u32;
+    PhysicalSize::new(part(area.width), part(area.height))
+}
+
+/// Size a window that was built hidden to `share` of its screen, centre it and
+/// show it. SSH windows use 0.8, the size of an RDP window in Window mode.
+pub fn show_sized(window: &WebviewWindow, share: f64) {
+    if let Some(monitor) = screen_of(window) {
+        let _ = window.set_size(share_of(usable_area(&monitor), share));
+        let _ = window.center();
+    }
+    let _ = window.show();
+}
 
 /// Shrink a window that would be bigger than its screen (small laptop panels,
 /// high display scaling) to 90% of the screen, and centre it.
 pub fn fit_to_screen(window: &WebviewWindow) {
-    let monitor = match window.current_monitor() {
-        Ok(Some(m)) => Some(m),
-        _ => window.primary_monitor().ok().flatten(),
-    };
-    let (Some(monitor), Ok(size)) = (monitor, window.outer_size()) else {
+    let (Some(monitor), Ok(size)) = (screen_of(window), window.outer_size()) else {
         return;
     };
-    // Wayland may not report a work area; fall back to the full screen.
-    let area = monitor.work_area().size;
-    let screen = if area.width > 0 && area.height > 0 { area } else { *monitor.size() };
+    let screen = usable_area(&monitor);
     let max_w = screen.width * 9 / 10;
     let max_h = screen.height * 9 / 10;
     if size.width > max_w || size.height > max_h {
@@ -157,4 +184,15 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Corestart Reach");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_windows_take_a_share_of_the_screen() {
+        assert_eq!(share_of(PhysicalSize::new(1920, 1040), 0.8), PhysicalSize::new(1536, 832));
+        assert_eq!(share_of(PhysicalSize::new(1366, 728), 0.8), PhysicalSize::new(1093, 582));
+    }
 }

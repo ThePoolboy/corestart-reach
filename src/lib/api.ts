@@ -47,6 +47,8 @@ export interface Settings {
   autoLockMinutes: number;
   /** Look for a new version after unlocking and every 12 hours (Windows only). */
   checkForUpdates: boolean;
+  /** Keyboard shortcuts the user changed, by action (see lib/shortcuts.ts). */
+  shortcuts: Record<string, string>;
 }
 
 export interface Tree {
@@ -166,7 +168,7 @@ export const api = {
     invoke<void>('ssh_answer', { session, answer }),
 
   /** Open one of Reach's web pages in the browser. */
-  openLink: (link: 'source' | 'kofi' | 'releases') => invoke<void>('open_link', { link }),
+  openLink: (link: 'source' | 'sponsors' | 'kofi' | 'releases') => invoke<void>('open_link', { link }),
 
   /** False on Linux, where Flatpak updates Reach. */
   updateSupported: () => invoke<boolean>('update_supported'),
