@@ -2,7 +2,13 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 
 export type Protocol = 'rdp' | 'ssh';
-export type RdpScreen = 'window' | 'fullscreen';
+export type RdpScreen = 'window' | 'fixed' | 'fullscreen';
+
+/** The remote desktop's resolution when the screen is 'fixed'. */
+export interface RdpSize {
+  width: number;
+  height: number;
+}
 
 export interface Folder {
   id: string;
@@ -24,6 +30,7 @@ export interface Connection {
   sshKeyPath: string;
   hasKeyPassphrase: boolean;
   rdpScreen: RdpScreen;
+  rdpSize: RdpSize;
   notes: string;
 }
 
@@ -71,6 +78,7 @@ export interface ConnectionInput {
   sshKeyPath: string;
   sshKeyPassphrase: SecretUpdate;
   rdpScreen: RdpScreen;
+  rdpSize: RdpSize;
   notes: string;
 }
 

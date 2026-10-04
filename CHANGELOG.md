@@ -2,8 +2,15 @@
 
 ## Unreleased
 
-- Windows: Reach no longer changes mstsc's `Documents\Default.rdp` before connecting (undoes
-  the 0.1.2 change); RDP window sizing is being reworked
+- RDP connections can have a **Fixed size** screen: pick a common size or type your own
+  (640 × 480 to 8192 × 8192). The remote desktop keeps that resolution, and resizing the
+  window scales the picture to fit. On Linux the window opens small enough to fit the screen
+- Windows: an RDP window in **Window** mode no longer opens bigger than the screen, with
+  scroll bars, on laptops with display scaling (125%, 150%…) or a bigger second monitor.
+  It starts at 80% of the smallest screen, after scaling
+- Windows: mstsc has no switches for these, so before every connection Reach sets dynamic
+  resolution and smart sizing in mstsc's `Documents\Default.rdp` to match the screen mode
+  (as 0.1.2 did, now also for Fixed size)
 
 ## 0.1.2 (2026-10-02)
 

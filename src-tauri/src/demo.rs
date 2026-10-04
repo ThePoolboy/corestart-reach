@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::model::{
-    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, SecretUpdate, VaultData,
+    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, RdpSize, SecretUpdate, VaultData,
 };
 use crate::vault;
 
@@ -107,6 +107,7 @@ impl Conn<'_> {
             ssh_key_path: self.key.into(),
             ssh_key_passphrase: SecretUpdate::Keep,
             rdp_screen: RdpScreen::Window,
+            rdp_size: RdpSize::default(),
             notes: self.notes.into(),
         })
         .unwrap();

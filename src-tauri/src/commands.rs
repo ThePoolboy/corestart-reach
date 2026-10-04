@@ -12,7 +12,7 @@ use zeroize::Zeroizing;
 
 use crate::error::{Result, msg};
 use crate::model::{
-    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, Resolved, Settings, Tree,
+    ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, RdpSize, Resolved, Settings, Tree,
     VaultData, parse_address,
 };
 use crate::ssh::{Sessions, SshAnswer, SshEvent};
@@ -351,6 +351,7 @@ pub async fn quick_connect(
         ssh_key_path: String::new(),
         ssh_key_passphrase: None,
         rdp_screen: RdpScreen::Window,
+        rdp_size: RdpSize::default(),
     };
     if let Some(login) = login {
         login.apply(&mut target);

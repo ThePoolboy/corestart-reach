@@ -9,7 +9,7 @@
 use serde::Serialize;
 
 use crate::error::Result;
-use crate::model::Resolved;
+use crate::model::{RdpScreen, RdpSize, Resolved};
 
 /// Sent to the main window when an RDP client exits with an error.
 #[cfg_attr(windows, allow(dead_code))]
@@ -36,6 +36,113 @@ fn address(c: &Resolved) -> String {
     }
 }
 
+/// `size`, shrunk to fit in 80% of `screen` without changing its shape.
+#[cfg_attr(windows, allow(dead_code))]
+fn fit(size: RdpSize, screen: (u32, u32)) -> (u32, u32) {
+    let (w, h) = (u64::from(size.width), u64::from(size.height));
+    let (max_w, max_h) = (u64::from(screen.0) * 8 / 10, u64::from(screen.1) * 8 / 10);
+    if w <= max_w && h <= max_h {
+        return (size.width, size.height);
+    }
+    // Scale by whichever side is tighter: w/max_w or h/max_h.
+    let (w, h) = if w * max_h >= h * max_w { (max_w, h * max_w / w) } else { (w * max_h / h, max_h) };
+    (w as u32, h as u32)
+}
+
+/// The mstsc settings, kept in `Default.rdp`, for a screen mode: either the remote
+/// desktop follows the window (dynamic resolution), or it keeps its size and the
+/// picture is scaled to the window (smart sizing).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn mstsc_options(screen: RdpScreen) -> [(&'static str, &'static str); 2] {
+    let fixed = screen == RdpScreen::Fixed;
+    [("dynamic resolution:i:", if fixed { "0" } else { "1" }), ("smart sizing:i:", if fixed { "1" } else { "0" })]
+}
+
+/// mstsc's `Default.rdp` with `options` set, or `None` if it already has them.
+/// mstsc saves the file as UTF-16 with a byte order mark; it's written back the
+/// same way it was read, and a new file is written the way mstsc writes it.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn with_options(file: Option<&[u8]>, options: &[(&str, &str)]) -> Option<Vec<u8>> {
+    let file = file.unwrap_or(&[0xFF, 0xFE]);
+    let utf16 = file.starts_with(&[0xFF, 0xFE]);
+    let text = if utf16 {
+        let units: Vec<u16> = file[2..].chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
+        String::from_utf16_lossy(&units)
+    } else {
+        String::from_utf8_lossy(file.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(file)).into_owned()
+    };
+
+    let mut out = String::with_capacity(text.len() + 64);
+    let mut missing = options.to_vec();
+    for line in text.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\r', '\n']);
+        match options.iter().find(|(key, _)| body.starts_with(key)) {
+            Some((key, value)) => {
+                missing.retain(|(k, _)| k != key);
+                out.push_str(key);
+                out.push_str(value);
+                out.push_str(&line[body.len()..]);
+            }
+            None => out.push_str(line),
+        }
+    }
+    for (key, value) in missing {
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push_str("\r\n");
+        }
+        out.push_str(&format!("{key}{value}\r\n"));
+    }
+    if out == text {
+        return None;
+    }
+
+    Some(if utf16 {
+        [0xFF, 0xFE].into_iter().chain(out.encode_utf16().flat_map(u16::to_le_bytes)).collect()
+    } else {
+        out.into_bytes()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixed_sizes_fit_the_screen() {
+        let size = |width, height| RdpSize { width, height };
+        // Fits in 80% of the screen: unchanged.
+        assert_eq!(fit(size(1280, 720), (1920, 1080)), (1280, 720));
+        // Too wide or too tall: shrunk to 80%, keeping its shape.
+        assert_eq!(fit(size(1920, 1080), (1920, 1080)), (1536, 864));
+        assert_eq!(fit(size(1920, 1080), (1366, 768)), (1091, 614));
+        assert_eq!(fit(size(1024, 768), (2560, 900)), (960, 720));
+    }
+
+    #[test]
+    fn default_rdp_gets_the_screen_mode() {
+        let utf16 = |s: &str| -> Vec<u8> {
+            [0xFF, 0xFE].into_iter().chain(s.encode_utf16().flat_map(u16::to_le_bytes)).collect()
+        };
+        let follow = mstsc_options(RdpScreen::Window);
+        let fixed = mstsc_options(RdpScreen::Fixed);
+        let before = "screen mode id:i:1\r\nsmart sizing:i:1\r\ndynamic resolution:i:0\r\nfull address:s:web1\r\n";
+        let after = "screen mode id:i:1\r\nsmart sizing:i:0\r\ndynamic resolution:i:1\r\nfull address:s:web1\r\n";
+        assert_eq!(with_options(Some(&utf16(before)), &follow), Some(utf16(after)));
+        assert_eq!(with_options(Some(&utf16(after)), &follow), None);
+        assert_eq!(with_options(Some(&utf16(after)), &fixed), Some(utf16(before)));
+
+        // Missing settings are added; plain UTF-8 stays UTF-8; no file gets a new one.
+        assert_eq!(
+            with_options(Some(b"full address:s:web1"), &follow).as_deref(),
+            Some(&b"full address:s:web1\r\ndynamic resolution:i:1\r\nsmart sizing:i:0\r\n"[..])
+        );
+        assert_eq!(
+            with_options(None, &fixed),
+            Some(utf16("dynamic resolution:i:0\r\nsmart sizing:i:1\r\n"))
+        );
+    }
+}
+
 #[cfg(not(windows))]
 pub use linux::launch;
 #[cfg(windows)]
@@ -49,9 +156,8 @@ mod linux {
 
     use tauri::{AppHandle, Emitter};
 
-    use super::{RdpExit, Result, Resolved, address};
+    use super::{RdpExit, RdpScreen, Result, Resolved, address, fit};
     use crate::error::msg;
-    use crate::model::RdpScreen;
 
     /// FreeRDP binary names, best first. Distros name them differently; the
     /// Flatpak ships only the SDL3 client (native Wayland).
@@ -113,7 +219,8 @@ mod linux {
         text.split("version ").nth(1)?.split('.').next()?.trim().parse().ok()
     }
 
-    fn arguments(c: &Resolved) -> Vec<String> {
+    /// `screen` is the primary monitor in pixels, if known.
+    fn arguments(c: &Resolved, screen: Option<(u32, u32)>) -> Vec<String> {
         let mut args = vec![
             format!("/v:{}", address(c)),
             format!("/t:{}", c.name),
@@ -138,13 +245,21 @@ mod linux {
                 args.push("/size:80%".into());
                 args.push("+dynamic-resolution".into());
             }
+            RdpScreen::Fixed => {
+                // A window that fits the screen, showing the fixed-size desktop scaled.
+                let size = c.rdp_size;
+                let (w, h) = screen.map_or((size.width, size.height), |s| fit(size, s));
+                args.push(format!("/size:{w}x{h}"));
+                args.push(format!("/smart-sizing:{}x{}", size.width, size.height));
+            }
         }
         args
     }
 
     pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
         let exe = find_client()?;
-        let args = arguments(c);
+        let screen = app.primary_monitor().ok().flatten().map(|m| (m.size().width, m.size().height));
+        let args = arguments(c, screen);
         if args.iter().any(|a| a.contains('\n')) {
             return Err(msg("Connection settings can't contain line breaks."));
         }
@@ -219,7 +334,7 @@ mod linux {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::model::Protocol;
+        use crate::model::{Protocol, RdpSize};
 
         #[test]
         fn password_only_goes_through_stdin_args() {
@@ -234,17 +349,25 @@ mod linux {
                 ssh_key_path: String::new(),
                 ssh_key_passphrase: None,
                 rdp_screen: RdpScreen::Window,
+                rdp_size: RdpSize::default(),
             };
-            let args = arguments(&c);
+            let args = arguments(&c, None);
             assert!(args.contains(&"/v:[fe80::1]:3389".to_string()));
             assert!(args.contains(&"/p:p@ss word".to_string()));
             assert!(args.contains(&"/d:CORP".to_string()));
 
             // A username that already names its domain wins over the Domain field.
             let c = Resolved { username: "CORP\\admin".into(), domain: "OTHER".into(), ..c };
-            let args = arguments(&c);
+            let args = arguments(&c, None);
             assert!(args.contains(&"/u:CORP\\admin".to_string()));
             assert!(!args.iter().any(|a| a.starts_with("/d:")));
+
+            // Window: follows the window. Fixed: scaled into a window that fits the screen.
+            assert!(args.contains(&"+dynamic-resolution".to_string()));
+            let c = Resolved { rdp_screen: RdpScreen::Fixed, rdp_size: RdpSize { width: 1920, height: 1080 }, ..c };
+            let args = arguments(&c, Some((1366, 768)));
+            assert!(args.ends_with(&["/size:1091x614".to_string(), "/smart-sizing:1920x1080".to_string()]));
+            assert!(!args.contains(&"+dynamic-resolution".to_string()));
         }
 
         #[test]
@@ -280,18 +403,22 @@ mod linux {
 
 #[cfg(windows)]
 mod windows_impl {
+    use std::fs::OpenOptions;
+    use std::io::Write;
     use std::os::windows::process::CommandExt;
+    use std::path::PathBuf;
     use std::process::Command;
 
     use tauri::AppHandle;
     use windows::Win32::Security::Credentials::{
         CRED_PERSIST_SESSION, CRED_TYPE_GENERIC, CREDENTIALW, CredWriteW,
     };
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::{FOLDERID_Documents, KNOWN_FOLDER_FLAG, SHGetKnownFolderPath};
     use windows::core::PWSTR;
 
-    use super::{Result, Resolved, address};
+    use super::{RdpScreen, Result, Resolved, address, mstsc_options, with_options};
     use crate::error::msg;
-    use crate::model::RdpScreen;
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -319,22 +446,85 @@ mod windows_impl {
             .map_err(|e| msg(format!("Couldn't save the RDP password for mstsc: {e}")))
     }
 
-    /// `/v:host:port`, then full screen, or a window at 80% of the screen
-    /// (mstsc resizes the remote desktop to match when you resize the window).
+    /// `/v:host:port`, then full screen, a window at 80% of `screen` that the
+    /// remote desktop follows, or the fixed size (scaled to fit the window).
     fn arguments(c: &Resolved, screen: Option<(u32, u32)>) -> Vec<String> {
         let mut args = vec![format!("/v:{}", address(c))];
-        match (c.rdp_screen, screen) {
-            (RdpScreen::Fullscreen, _) => args.push("/f".into()),
-            (RdpScreen::Window, Some((w, h))) => {
-                args.push(format!("/w:{}", w * 8 / 10));
-                args.push(format!("/h:{}", h * 8 / 10));
+        let size = match (c.rdp_screen, screen) {
+            (RdpScreen::Fullscreen, _) => {
+                args.push("/f".into());
+                None
             }
-            (RdpScreen::Window, None) => {}
+            (RdpScreen::Fixed, _) => Some((c.rdp_size.width, c.rdp_size.height)),
+            (RdpScreen::Window, screen) => screen.map(|(w, h)| (w * 8 / 10, h * 8 / 10)),
+        };
+        if let Some((w, h)) = size {
+            args.push(format!("/w:{w}"));
+            args.push(format!("/h:{h}"));
         }
         args
     }
 
+    /// mstsc's `Documents\Default.rdp`, where it keeps the settings it uses for
+    /// `/v` connections. Documents may be redirected (OneDrive), so ask Windows.
+    fn default_rdp() -> Option<PathBuf> {
+        // SAFETY: the returned string is copied, then freed exactly once.
+        unsafe {
+            let path = SHGetKnownFolderPath(&FOLDERID_Documents, KNOWN_FOLDER_FLAG(0), None).ok()?;
+            let documents = path.to_string();
+            CoTaskMemFree(Some(path.0 as *const _));
+            Some(PathBuf::from(documents.ok()?).join("Default.rdp"))
+        }
+    }
+
+    /// Set dynamic resolution and smart sizing for this connection's screen mode.
+    /// mstsc has no switches for them; `/v` connections take them from
+    /// `Default.rdp`. That file is mstsc's "last used settings", which it rewrites
+    /// itself after connecting, so they're set again before every launch.
+    fn set_screen_mode(screen: RdpScreen) -> std::io::Result<()> {
+        let Some(file) = default_rdp() else { return Ok(()) };
+        let old = match std::fs::read(&file) {
+            Ok(old) => Some(old),
+            // No file means mstsc's defaults, which already follow the window.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound && screen != RdpScreen::Fixed => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e),
+        };
+        let Some(new) = with_options(old.as_deref(), &mstsc_options(screen)) else { return Ok(()) };
+        // Rewrite the file in place (no truncate): Windows refuses to replace a
+        // hidden file, and mstsc hides this one.
+        let mut f = OpenOptions::new().write(true).create(true).truncate(false).open(&file)?;
+        f.write_all(&new)?;
+        f.set_len(new.len() as u64)
+    }
+
+    /// The usable area of the smallest screen, before display scaling: mstsc scales
+    /// its window up by the scaling (125%, 150%…), so on a scaled laptop screen
+    /// physical pixels make it taller than the screen, with scroll bars. The
+    /// smallest, because mstsc may open on any of them.
+    fn smallest_screen(app: &AppHandle) -> Option<(u32, u32)> {
+        let screens: Vec<(u32, u32)> = app
+            .available_monitors()
+            .ok()?
+            .iter()
+            .map(|m| {
+                let area = m.work_area().size;
+                let area = if area.width > 0 && area.height > 0 { area } else { *m.size() };
+                let unscaled = |px: u32| (f64::from(px) / m.scale_factor().max(1.0)) as u32;
+                (unscaled(area.width), unscaled(area.height))
+            })
+            .collect();
+        Some((screens.iter().map(|s| s.0).min()?, screens.iter().map(|s| s.1).min()?))
+    }
+
     pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
+        if let Err(e) = set_screen_mode(c.rdp_screen) {
+            // A fixed size can't scale without it; a window just might not resize.
+            if c.rdp_screen == RdpScreen::Fixed {
+                return Err(msg(format!("Couldn't set mstsc to the fixed screen size (Documents\\Default.rdp): {e}")));
+            }
+        }
+
         let user = match c.separate_domain() {
             Some(domain) if !c.username.is_empty() => format!("{domain}\\{}", c.username),
             _ => c.username.clone(),
@@ -343,9 +533,8 @@ mod windows_impl {
         let password = c.password.as_deref().ok_or_else(|| msg("There's no password to log in with."))?;
         store_credential(&c.host, &user, password)?;
 
-        let screen = app.primary_monitor().ok().flatten().map(|m| (m.size().width, m.size().height));
         Command::new("mstsc.exe")
-            .args(arguments(c, screen))
+            .args(arguments(c, smallest_screen(app)))
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| msg(format!("Couldn't start mstsc: {e}")))?;
@@ -355,7 +544,7 @@ mod windows_impl {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::model::Protocol;
+        use crate::model::{Protocol, RdpSize};
 
         #[test]
         fn mstsc_arguments() {
@@ -370,10 +559,16 @@ mod windows_impl {
                 ssh_key_path: String::new(),
                 ssh_key_passphrase: None,
                 rdp_screen: RdpScreen::Window,
+                rdp_size: RdpSize { width: 1280, height: 1024 },
             };
             assert_eq!(
                 arguments(&c, Some((2560, 1440))),
                 ["/v:web1.corp.example.com:3390", "/w:2048", "/h:1152"]
+            );
+            c.rdp_screen = RdpScreen::Fixed;
+            assert_eq!(
+                arguments(&c, Some((2560, 1440))),
+                ["/v:web1.corp.example.com:3390", "/w:1280", "/h:1024"]
             );
             c.rdp_screen = RdpScreen::Fullscreen;
             assert_eq!(arguments(&c, None), ["/v:web1.corp.example.com:3390", "/f"]);

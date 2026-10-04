@@ -76,9 +76,42 @@ impl Protocol {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RdpScreen {
+    /// The remote desktop follows the window's size.
     #[default]
     Window,
+    /// The remote desktop is always [`RdpSize`]; the window scales the picture.
+    Fixed,
     Fullscreen,
+}
+
+/// The remote desktop's resolution for [`RdpScreen::Fixed`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RdpSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Default for RdpSize {
+    fn default() -> Self {
+        Self { width: 1920, height: 1080 }
+    }
+}
+
+impl RdpSize {
+    /// What both RDP clients and servers accept.
+    pub const MIN: Self = Self { width: 640, height: 480 };
+    pub const MAX: Self = Self { width: 8192, height: 8192 };
+
+    pub fn validate(self) -> Result<()> {
+        let (min, max) = (Self::MIN, Self::MAX);
+        if !(min.width..=max.width).contains(&self.width) || !(min.height..=max.height).contains(&self.height) {
+            return Err(msg(format!(
+                "Screen size must be from {}×{} to {}×{}.",
+                min.width, min.height, max.width, max.height
+            )));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +140,8 @@ pub struct Connection {
     pub ssh_key_passphrase: Option<String>,
     #[serde(default)]
     pub rdp_screen: RdpScreen,
+    #[serde(default)]
+    pub rdp_size: RdpSize,
     #[serde(default)]
     pub notes: String,
 }
@@ -145,6 +180,7 @@ pub struct ConnectionView {
     pub ssh_key_path: String,
     pub has_key_passphrase: bool,
     pub rdp_screen: RdpScreen,
+    pub rdp_size: RdpSize,
     pub notes: String,
 }
 
@@ -164,6 +200,7 @@ impl From<&Connection> for ConnectionView {
             ssh_key_path: c.ssh_key_path.clone(),
             has_key_passphrase: c.ssh_key_passphrase.is_some(),
             rdp_screen: c.rdp_screen,
+            rdp_size: c.rdp_size,
             notes: c.notes.clone(),
         }
     }
@@ -259,6 +296,8 @@ pub struct ConnectionInput {
     #[serde(default)]
     pub rdp_screen: RdpScreen,
     #[serde(default)]
+    pub rdp_size: RdpSize,
+    #[serde(default)]
     pub notes: String,
 }
 
@@ -297,6 +336,9 @@ impl VaultData {
         if input.port == Some(0) {
             return Err(msg("Port must be between 1 and 65535."));
         }
+        if input.protocol == Protocol::Rdp && input.rdp_screen == RdpScreen::Fixed {
+            input.rdp_size.validate()?;
+        }
         self.check_folder(input.folder_id)?;
         if let Some(cid) = input.credential_id {
             if !self.credentials.iter().any(|c| c.id == cid) {
@@ -326,6 +368,7 @@ impl VaultData {
                     ssh_key_path: String::new(),
                     ssh_key_passphrase: None,
                     rdp_screen: RdpScreen::default(),
+                    rdp_size: RdpSize::default(),
                     notes: String::new(),
                 });
                 self.connections.len() - 1
@@ -344,6 +387,7 @@ impl VaultData {
         c.ssh_key_path = input.ssh_key_path.trim().to_string();
         input.ssh_key_passphrase.apply(&mut c.ssh_key_passphrase);
         c.rdp_screen = input.rdp_screen;
+        c.rdp_size = input.rdp_size;
         c.notes = input.notes;
         Ok(id)
     }
@@ -510,6 +554,7 @@ impl VaultData {
             ssh_key_path: c.ssh_key_path.clone(),
             ssh_key_passphrase: c.ssh_key_passphrase.clone(),
             rdp_screen: c.rdp_screen,
+            rdp_size: c.rdp_size,
         })
     }
 }
@@ -559,6 +604,7 @@ pub struct Resolved {
     pub ssh_key_path: String,
     pub ssh_key_passphrase: Option<String>,
     pub rdp_screen: RdpScreen,
+    pub rdp_size: RdpSize,
 }
 
 impl Resolved {
@@ -593,6 +639,7 @@ mod tests {
             ssh_key_path: String::new(),
             ssh_key_passphrase: SecretUpdate::Keep,
             rdp_screen: RdpScreen::Window,
+            rdp_size: RdpSize::default(),
             notes: String::new(),
         }
     }
@@ -601,6 +648,28 @@ mod tests {
     fn older_vaults_get_update_checks_on() {
         let settings: Settings = serde_json::from_str(r#"{"autoLockMinutes":5}"#).unwrap();
         assert_eq!(settings, Settings { auto_lock_minutes: 5, check_for_updates: true });
+    }
+
+    #[test]
+    fn fixed_screen_size_is_checked() {
+        let rdp = |screen, width, height| ConnectionInput {
+            protocol: Protocol::Rdp,
+            rdp_screen: screen,
+            rdp_size: RdpSize { width, height },
+            ..input("srv1")
+        };
+        let mut d = VaultData::default();
+        assert!(d.save_connection(rdp(RdpScreen::Fixed, 1280, 400)).is_err());
+        let id = d.save_connection(rdp(RdpScreen::Fixed, 1280, 720)).unwrap();
+        assert_eq!(d.resolve(id).unwrap().rdp_size, RdpSize { width: 1280, height: 720 });
+        // Only checked when it's used.
+        assert!(d.save_connection(rdp(RdpScreen::Window, 0, 0)).is_ok());
+
+        // Vaults saved before fixed sizes existed.
+        let c: Connection =
+            serde_json::from_str(r#"{"id":"6f1c8c1e-6d3c-4a51-9f4e-1d2a3b4c5d6e","name":"a","protocol":"rdp","host":"a"}"#)
+                .unwrap();
+        assert_eq!((c.rdp_screen, c.rdp_size), (RdpScreen::Window, RdpSize::default()));
     }
 
     #[test]

@@ -67,6 +67,14 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       have a non-standard port).
 - [ ] **Window** mode opens at about 80% of the screen; resizing it resizes the remote
       desktop. **Full screen** mode fills the screen.
+- [ ] **Window** mode on a laptop at 125% or 150% display scaling (Windows): the window
+      fits on the screen with no scroll bars, and maximising it resizes the remote desktop.
+- [ ] **Fixed size** (try 1280 × 720 and a custom size): the remote desktop has exactly
+      that resolution (check in the remote Settings → Display). Resizing or maximising the
+      window scales the picture; no scroll bars. On a screen smaller than the size, the
+      window still fits.
+- [ ] Switch a connection from Fixed size back to Window: it follows the window again
+      (Windows: Reach resets mstsc's smart sizing each time).
 - [ ] Copy and paste text both ways between the remote desktop and your machine.
 - [ ] **Flatpak:** the RDP window is sharp on a scaled display (125%, 150%), keyboard
       shortcuts like Alt+Tab reach the remote desktop while it has focus (GNOME may ask

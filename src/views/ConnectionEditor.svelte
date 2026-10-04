@@ -16,6 +16,22 @@
   import Icon from '../lib/Icon.svelte';
   import SecretField from './SecretField.svelte';
 
+  /** Common screen sizes for a fixed-size RDP screen. */
+  const SIZES = [
+    [1024, 768],
+    [1280, 720],
+    [1280, 800],
+    [1280, 1024],
+    [1366, 768],
+    [1440, 900],
+    [1600, 900],
+    [1680, 1050],
+    [1920, 1080],
+    [1920, 1200],
+    [2560, 1440],
+    [3840, 2160],
+  ].map(([w, h]) => `${w}x${h}`);
+
   let {
     tree,
     connection,
@@ -53,6 +69,8 @@
       domain: c?.domain ?? '',
       sshKeyPath: c?.sshKeyPath ?? '',
       rdpScreen: (c?.rdpScreen ?? 'window') as RdpScreen,
+      rdpWidth: String(c?.rdpSize.width ?? 1920),
+      rdpHeight: String(c?.rdpSize.height ?? 1080),
       notes: c?.notes ?? '',
     };
   });
@@ -75,8 +93,18 @@
   const credential = $derived(tree.credentials.find((c) => c.id === form.credentialId));
   const defaultPort = $derived(form.protocol === 'rdp' ? 3389 : 22);
 
+  /** The size picker shows "Custom" with width and height boxes for any other size. */
+  let customSize = $state(untrack(() => !SIZES.includes(`${start.rdpWidth}x${start.rdpHeight}`)));
+  const sizeChoice = $derived(customSize ? 'custom' : `${form.rdpWidth}x${form.rdpHeight}`);
+
+  function pickSize(choice: string) {
+    customSize = choice === 'custom';
+    if (!customSize) [form.rdpWidth, form.rdpHeight] = choice.split('x');
+  }
+
   function revert() {
     form = { ...start };
+    customSize = !SIZES.includes(`${start.rdpWidth}x${start.rdpHeight}`);
     password = 'keep';
     passphrase = 'keep';
     error = '';
@@ -90,6 +118,13 @@
     const port = form.port.trim() ? Number(form.port.trim()) : null;
     if (port !== null && (!Number.isInteger(port) || port < 1 || port > 65535)) {
       error = 'Port must be a number from 1 to 65535.';
+      return;
+    }
+    const rdpSize = { width: Number(form.rdpWidth.trim()), height: Number(form.rdpHeight.trim()) };
+    const fixed = form.protocol === 'rdp' && form.rdpScreen === 'fixed';
+    const between = (n: number, min: number, max: number) => Number.isInteger(n) && n >= min && n <= max;
+    if (fixed && !(between(rdpSize.width, 640, 8192) && between(rdpSize.height, 480, 8192))) {
+      error = 'Screen size must be from 640×480 to 8192×8192.';
       return;
     }
     saving = true;
@@ -108,6 +143,8 @@
         sshKeyPath: form.protocol === 'ssh' ? form.sshKeyPath : '',
         sshKeyPassphrase: form.protocol === 'ssh' ? passphrase : 'clear',
         rdpScreen: form.rdpScreen,
+        // Kept as it was unless it's in use, so switching modes doesn't lose it.
+        rdpSize: fixed ? rdpSize : (connection?.rdpSize ?? { width: 1920, height: 1080 }),
         notes: form.notes,
       });
       onsaved(saved);
@@ -284,12 +321,46 @@
             <button type="button" class:on={form.rdpScreen === 'window'} onclick={() => (form.rdpScreen = 'window')}>
               Window
             </button>
+            <button type="button" class:on={form.rdpScreen === 'fixed'} onclick={() => (form.rdpScreen = 'fixed')}>
+              Fixed size
+            </button>
             <button type="button" class:on={form.rdpScreen === 'fullscreen'} onclick={() => (form.rdpScreen = 'fullscreen')}>
               Full screen
             </button>
           </div>
-          <span class="hint">In a window, the remote desktop resizes to fit when you resize the window.</span>
+          <span class="hint">
+            {#if form.rdpScreen === 'window'}
+              The remote desktop resizes to fit when you resize the window.
+            {:else if form.rdpScreen === 'fixed'}
+              The remote desktop keeps this size. Resizing the window scales the picture to fit.
+            {:else}
+              The remote desktop fills the screen.
+            {/if}
+          </span>
         </div>
+        {#if form.rdpScreen === 'fixed'}
+          <div class="row size">
+            <label class="field">
+              <span>Size</span>
+              <select class="input" value={sizeChoice} onchange={(e) => pickSize(e.currentTarget.value)}>
+                {#each SIZES as size (size)}
+                  <option value={size}>{size.replace('x', ' × ')}</option>
+                {/each}
+                <option value="custom">Custom…</option>
+              </select>
+            </label>
+            {#if customSize}
+              <label class="field">
+                <span>Width</span>
+                <input class="input" bind:value={form.rdpWidth} inputmode="numeric" placeholder="1920" />
+              </label>
+              <label class="field">
+                <span>Height</span>
+                <input class="input" bind:value={form.rdpHeight} inputmode="numeric" placeholder="1080" />
+              </label>
+            {/if}
+          </div>
+        {/if}
       </section>
     {/if}
 
@@ -382,6 +453,9 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-faint);
+  }
+  .row.size {
+    grid-template-columns: 1fr 110px 110px;
   }
   .with-button {
     display: flex;
