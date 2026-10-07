@@ -21,6 +21,8 @@ update to it.
 - Everything you save is one file encrypted with your master password: Argon2id (64 MiB,
   3 passes) derives the key, and XChaCha20-Poly1305 encrypts everything, including host names
   and notes.
+- Backups you export are encrypted the same way, with the master password, and exporting
+  asks for that password so nobody can take one from a Reach left unlocked.
 - Passwords never reach the interface; it only learns whether one is saved.
 - The RDP password goes to FreeRDP through a pipe (Linux) or a session-only Windows
   credential (Windows), never on a command line.

@@ -1,6 +1,7 @@
 // No console window behind the app in Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod backup;
 mod commands;
 #[cfg(test)]
 mod demo;
@@ -122,7 +123,7 @@ fn main() {
         // overwrite each other's changes. Starting it again brings this one forward.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
         .plugin(tauri_plugin_clipboard_manager::init())
-        // File picker for SSH key files; goes through the desktop portal in a Flatpak.
+        // File picker for SSH key files and backups; goes through the desktop portal in a Flatpak.
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -160,6 +161,10 @@ fn main() {
             commands::vault_lock,
             commands::vault_touch,
             commands::vault_change_password,
+            commands::backup_export,
+            commands::backup_open,
+            commands::backup_restore,
+            commands::backup_cancel,
             commands::save_settings,
             commands::get_tree,
             commands::save_connection,

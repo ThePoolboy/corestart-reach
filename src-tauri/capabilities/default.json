@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core APIs for the main window and SSH session windows; the main window may also open the file picker (for SSH key files) and copy text (donation addresses in Settings) and set its light or dark theme.",
+  "description": "Core APIs for the main window and SSH session windows; the main window may also open the file picker (SSH key files, backups) and the save dialog (backups) and copy text (donation addresses in Settings) and set its light or dark theme.",
   "windows": ["main", "ssh-*"],
   "permissions": [
     "core:default",
@@ -11,6 +11,10 @@
     },
     {
       "identifier": "dialog:allow-open",
+      "windows": ["main"]
+    },
+    {
+      "identifier": "dialog:allow-save",
       "windows": ["main"]
     },
     {

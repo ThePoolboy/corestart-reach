@@ -30,8 +30,12 @@
   import SettingsPane from './SettingsPane.svelte';
   import UpdateBanner from './UpdateBanner.svelte';
 
-  let { tree, onchange, onlock }: { tree: Tree; onchange: (t: Tree) => void; onlock: () => void } =
-    $props();
+  let {
+    tree,
+    onchange,
+    onlock,
+    onrestore,
+  }: { tree: Tree; onchange: (t: Tree) => void; onlock: () => void; onrestore: (t: Tree) => void } = $props();
 
   type View =
     | { kind: 'home' }
@@ -737,7 +741,7 @@
             ondelete={confirmDeleteCredential}
           />
         {:else if view.kind === 'settings'}
-          <SettingsPane {tree} {onchange} />
+          <SettingsPane {tree} {onchange} {onrestore} />
         {:else}
           <div class="home">
             {#if tree.connections.length}

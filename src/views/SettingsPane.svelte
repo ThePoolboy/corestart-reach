@@ -1,17 +1,33 @@
 <script lang="ts">
   import { getVersion } from '@tauri-apps/api/app';
+  import { documentDir, join } from '@tauri-apps/api/path';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { open, save } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import bitcoinQr from '../../assets/donate/bitcoin.png';
   import ethereumQr from '../../assets/donate/ethereum.png';
-  import { api, errorText, type Tree } from '../lib/api';
+  import { api, errorText, type BackupSummary, type Tree } from '../lib/api';
+  import {
+    BACKUP_FILTERS,
+    backupDate,
+    backupFileName,
+    describeBackup,
+    fileName,
+    rememberedChoices,
+    restoreRememberedChoices,
+  } from '../lib/backup';
   import Icon from '../lib/Icon.svelte';
   import { SHORTCUTS, defaultKeys, keysFor, keysOf, problemWith, type ShortcutAction } from '../lib/shortcuts';
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte';
   import { toast } from '../lib/toast.svelte';
   import { checkForUpdate, updates } from '../lib/update.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
-  let { tree, onchange }: { tree: Tree; onchange: (t: Tree) => void } = $props();
+  let {
+    tree,
+    onchange,
+    onrestore,
+  }: { tree: Tree; onchange: (t: Tree) => void; onrestore: (t: Tree) => void } = $props();
 
   const AUTO_LOCK = [
     { minutes: 5, label: 'After 5 minutes' },
@@ -97,6 +113,98 @@
     } catch (err) {
       toast(errorText(err), 'error');
     }
+  }
+
+  // ---- backup ----
+  /** The export or import waiting for a password, and its file. */
+  let backup = $state<{ kind: 'export' | 'import'; path: string } | null>(null);
+  let backupPassword = $state('');
+  let backupBusy = $state(false);
+  let backupError = $state('');
+  /** An opened backup, waiting for "Replace everything". */
+  let opened = $state<BackupSummary | null>(null);
+  const replaceMessage = $derived(
+    opened &&
+      `The backup from ${backupDate(opened)} has ${describeBackup(opened)}. It replaces all your connections ` +
+        "and settings here, and Reach will unlock with the backup's master password from now on. " +
+        'What you have now is kept as a copy next to the data file.',
+  );
+
+  async function startExport() {
+    try {
+      const name = backupFileName();
+      const start = await documentDir()
+        .then((dir) => join(dir, name))
+        .catch(() => name);
+      const path = await save({ title: 'Export a backup', defaultPath: start, filters: BACKUP_FILTERS });
+      if (path) showBackupForm('export', path);
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  async function startImport() {
+    try {
+      const path = await open({
+        title: 'Import a backup',
+        multiple: false,
+        directory: false,
+        filters: [...BACKUP_FILTERS, { name: 'All files', extensions: ['*'] }],
+      });
+      if (typeof path === 'string') showBackupForm('import', path);
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  function showBackupForm(kind: 'export' | 'import', path: string) {
+    cancelBackup();
+    backup = { kind, path };
+  }
+
+  function cancelBackup() {
+    backup = null;
+    backupPassword = '';
+    backupError = '';
+  }
+
+  async function submitBackup(e: SubmitEvent) {
+    e.preventDefault();
+    if (!backup || !backupPassword || backupBusy) return;
+    const { kind, path } = backup;
+    backupBusy = true;
+    backupError = '';
+    try {
+      if (kind === 'export') {
+        await api.backupExport(path, backupPassword, rememberedChoices());
+        toast(`Backup saved as ${fileName(path)}.`);
+      } else {
+        opened = await api.backupOpen(path, backupPassword);
+      }
+      cancelBackup();
+    } catch (err) {
+      backupError = errorText(err);
+      backupPassword = '';
+    } finally {
+      backupBusy = false;
+    }
+  }
+
+  async function replaceEverything() {
+    opened = null;
+    try {
+      const restored = await api.backupRestore();
+      restoreRememberedChoices(restored.ui);
+      onrestore(restored.tree);
+      toast("Backup imported. Reach now unlocks with the backup's master password.");
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  }
+
+  function keepCurrent() {
+    opened = null;
+    api.backupCancel().catch(() => {});
   }
 
   // ---- updates ----
@@ -276,6 +384,52 @@
     </section>
 
     <section>
+      <h2>Backup</h2>
+      {#if !backup}
+        <div class="buttons">
+          <button type="button" class="btn" title="Save everything in Reach to one encrypted file" onclick={startExport}>
+            Export backup…
+          </button>
+          <button type="button" class="btn" title="Replace everything in Reach with a backup" onclick={startImport}>
+            Import backup…
+          </button>
+        </div>
+      {:else}
+        {@const exporting = backup.kind === 'export'}
+        <form class="form" onsubmit={submitBackup}>
+          <p class="about">
+            {exporting ? 'Export to' : 'Import from'} <span class="path" title={backup.path}>{fileName(backup.path)}</span>
+          </p>
+          <label class="field">
+            <span>{exporting ? 'Master password' : 'Password for this backup'}</span>
+            <input
+              class="input"
+              type="password"
+              bind:value={backupPassword}
+              autocomplete="current-password"
+              placeholder={exporting ? '' : 'The master password it was made with'}
+              use:focus
+            />
+          </label>
+          {#if backupError}
+            <div class="error-text">{backupError}</div>
+          {/if}
+          <div class="buttons">
+            <span class="spacer"></span>
+            <button type="button" class="btn" onclick={cancelBackup}>Cancel</button>
+            <button type="submit" class="btn primary" disabled={!backupPassword || backupBusy}>
+              {#if backupBusy}
+                {exporting ? 'Exporting…' : 'Opening…'}
+              {:else}
+                {exporting ? 'Export' : 'Open'}
+              {/if}
+            </button>
+          </div>
+        </form>
+      {/if}
+    </section>
+
+    <section>
       <h2>Updates</h2>
       {#if updates.supported}
         <div class="field">
@@ -390,6 +544,17 @@
     </section>
   </div>
 </div>
+
+{#if opened && replaceMessage}
+  <ConfirmDialog
+    title="Replace everything?"
+    message={replaceMessage}
+    confirmLabel="Replace everything"
+    cancelFirst
+    onconfirm={replaceEverything}
+    oncancel={keepCurrent}
+  />
+{/if}
 
 <style>
   .pane {

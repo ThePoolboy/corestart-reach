@@ -47,6 +47,13 @@ Reach **locks itself after 15 minutes without use** (change it or turn it off in
 password can be changed there too; your saved data and its backup are re-encrypted with the
 new one.
 
+**Settings → Backup** saves everything in Reach to one encrypted `.reachbackup` file: folders,
+connections, saved credentials with their passwords, settings, and the theme and open folders.
+It opens with the master password Reach had when you made it. **Import backup…** (or **Restore
+from a backup…** on a new install) replaces everything with the backup, master password
+included; what you had is kept as `vault.before-import.json` next to the data file. SSH key
+files aren't in the backup (only where they are), so copy them yourself.
+
 ## Install
 
 An **installer** for Windows and a **Flatpak** for every Linux distribution (FreeRDP
@@ -91,6 +98,7 @@ to GitHub). See [TESTING.md](TESTING.md).
 | Key derivation | Argon2id, 64 MiB memory, 3 passes, random 16-byte salt |
 | Encryption | XChaCha20-Poly1305, fresh random nonce on every save |
 | Backup | The previous version is kept as `vault.json.bak` on every save |
+| Your backups | `.reachbackup` files you export, encrypted the same way with the master password (owner-only on Linux) |
 | Settings | Inside the encrypted data file (Settings → About shows where it is) |
 | SSH host keys | `~/.ssh/known_hosts`, shared with OpenSSH |
 
@@ -190,6 +198,7 @@ src/                        interface (Svelte 5 + TypeScript)
   views/SshSession.svelte   terminal window (xterm.js)
 src-tauri/                  Rust core (Tauri 2)
   src/vault.rs              the encrypted data file
+  src/backup.rs             export and import of encrypted backups
   src/model.rs              connections, folders, credentials
   src/rdp.rs                launch FreeRDP / mstsc
   src/ssh.rs                SSH sessions (russh)

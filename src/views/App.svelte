@@ -9,6 +9,8 @@
 
   let status = $state<VaultStatus | null>(null);
   let tree = $state<Tree | null>(null);
+  /** Bumped when a backup replaces everything, to start the workspace afresh. */
+  let generation = $state(0);
 
   onMount(async () => {
     try {
@@ -59,7 +61,17 @@
 
 {#if status}
   {#if tree}
-    <Workspace {tree} onchange={(t) => (tree = t)} onlock={lock} />
+    {#key generation}
+      <Workspace
+        {tree}
+        onchange={(t) => (tree = t)}
+        onlock={lock}
+        onrestore={(t) => {
+          tree = t;
+          generation++;
+        }}
+      />
+    {/key}
   {:else}
     <LockScreen {status} onunlock={(t) => (tree = t)} />
   {/if}

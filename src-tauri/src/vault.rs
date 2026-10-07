@@ -33,7 +33,7 @@ const DEFAULT_P: u32 = 1;
 pub const MIN_PASSWORD_LEN: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct KdfParams {
+pub(crate) struct KdfParams {
     alg: String,
     m_kib: u32,
     t: u32,
@@ -53,18 +53,18 @@ struct VaultFile {
 
 /// An open vault: the derived key and the decrypted contents.
 pub struct Unlocked {
-    key: Zeroizing<[u8; 32]>,
-    kdf: KdfParams,
+    pub(crate) key: Zeroizing<[u8; 32]>,
+    pub(crate) kdf: KdfParams,
     pub data: VaultData,
 }
 
-fn random<const N: usize>() -> Result<[u8; N]> {
+pub(crate) fn random<const N: usize>() -> Result<[u8; N]> {
     let mut buf = [0u8; N];
     getrandom::fill(&mut buf).map_err(|e| msg(format!("No secure random source: {e}")))?;
     Ok(buf)
 }
 
-fn derive_key(password: &str, kdf: &KdfParams) -> Result<Zeroizing<[u8; 32]>> {
+pub(crate) fn derive_key(password: &str, kdf: &KdfParams) -> Result<Zeroizing<[u8; 32]>> {
     if kdf.alg != "argon2id" {
         return Err(msg(format!("Unsupported key derivation '{}'.", kdf.alg)));
     }
@@ -82,7 +82,7 @@ fn derive_key(password: &str, kdf: &KdfParams) -> Result<Zeroizing<[u8; 32]>> {
     Ok(key)
 }
 
-fn cipher(key: &[u8; 32]) -> XChaCha20Poly1305 {
+pub(crate) fn cipher(key: &[u8; 32]) -> XChaCha20Poly1305 {
     XChaCha20Poly1305::new(&Key::from(*key))
 }
 
@@ -193,13 +193,18 @@ impl Unlocked {
         Ok(())
     }
 
+    /// Whether `password` is this vault's master password.
+    pub fn is_password(&self, password: &str) -> Result<bool> {
+        let entered = derive_key(password, &self.kdf)?;
+        Ok(same_key(&entered, &self.key))
+    }
+
     /// Re-encrypt the vault under a new master password, with a new salt.
     ///
     /// The backup is replaced too: otherwise `vault.json.bak` would still open
     /// with the old password, which matters if you're changing it because it leaked.
     pub fn change_password(&mut self, path: &Path, current: &str, new: &str) -> Result<()> {
-        let entered = derive_key(current, &self.kdf)?;
-        if !same_key(&entered, &self.key) {
+        if !self.is_password(current)? {
             return Err(msg("The current master password is wrong."));
         }
         check_new_password(new)?;

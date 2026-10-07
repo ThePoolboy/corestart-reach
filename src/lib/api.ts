@@ -122,6 +122,24 @@ export type SshAnswer =
   | { type: 'hostKey'; accept: boolean }
   | { type: 'prompt'; value: string | null };
 
+/** What's in a backup, shown before importing it. */
+export interface BackupSummary {
+  /** When it was made, in seconds since 1970. */
+  created: number;
+  appVersion: string;
+  folders: number;
+  connections: number;
+  credentials: number;
+}
+
+/** Choices the interface keeps in local storage, by key (`reach.theme`…). */
+export type UiState = Record<string, string>;
+
+export interface Restored {
+  tree: Tree;
+  ui: UiState;
+}
+
 /** A newer published version of Reach. */
 export interface UpdateInfo {
   version: string;
@@ -136,6 +154,15 @@ export const api = {
   vaultChangePassword: (current: string, next: string) =>
     invoke<void>('vault_change_password', { current, new: next }),
   saveSettings: (settings: Settings) => invoke<Tree>('save_settings', { settings }),
+
+  /** Save everything to `path`; `password` must be the master password. */
+  backupExport: (path: string, password: string, ui: UiState) =>
+    invoke<void>('backup_export', { path, password, ui }),
+  /** Decrypt a backup and say what's in it. Nothing changes yet. */
+  backupOpen: (path: string, password: string) => invoke<BackupSummary>('backup_open', { path, password }),
+  /** Replace everything with the opened backup. */
+  backupRestore: () => invoke<Restored>('backup_restore'),
+  backupCancel: () => invoke<void>('backup_cancel'),
   getTree: () => invoke<Tree>('get_tree'),
 
   saveConnection: (input: ConnectionInput) => invoke<Saved>('save_connection', { input }),

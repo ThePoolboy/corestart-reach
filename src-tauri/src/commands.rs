@@ -15,6 +15,7 @@ use crate::model::{
     ConnectionInput, CredentialInput, FolderInput, Protocol, RdpScreen, RdpSize, Resolved, Settings, Tree,
     VaultData, parse_address,
 };
+use crate::backup::{self, UiState};
 use crate::ssh::{Sessions, SshAnswer, SshEvent};
 use crate::{rdp, vault};
 
@@ -25,6 +26,8 @@ pub struct AppState {
     /// Last time you used the main window, for auto-lock. Wall-clock time, so
     /// time spent asleep or suspended counts as idle.
     last_activity: Mutex<SystemTime>,
+    /// A backup that was opened to import, until you confirm or cancel.
+    backup: Mutex<Option<backup::Opened>>,
 }
 
 impl AppState {
@@ -34,6 +37,7 @@ impl AppState {
             vault: Mutex::new(None),
             ssh: Sessions::default(),
             last_activity: Mutex::new(SystemTime::now()),
+            backup: Mutex::new(None),
         }
     }
 
@@ -43,6 +47,18 @@ impl AppState {
 
     fn lock(&self) -> MutexGuard<'_, Option<vault::Unlocked>> {
         self.vault.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn opened_backup(&self) -> MutexGuard<'_, Option<backup::Opened>> {
+        self.backup.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Whether the data file may be replaced: Reach is unlocked, or has no data yet.
+    fn may_replace(&self, vault: &Option<vault::Unlocked>) -> Result<()> {
+        if vault.is_none() && vault::exists(&self.vault_path) {
+            return Err(msg("The vault is locked."));
+        }
+        Ok(())
     }
 
     fn touch(&self) {
@@ -65,6 +81,7 @@ impl AppState {
             return None;
         }
         *guard = None;
+        *self.opened_backup() = None;
         Some(minutes)
     }
 
@@ -138,6 +155,7 @@ pub async fn vault_unlock(state: State<'_, AppState>, password: String) -> Resul
 #[tauri::command]
 pub async fn vault_lock(state: State<'_, AppState>) -> Result<()> {
     *state.lock() = None;
+    *state.opened_backup() = None;
     Ok(())
 }
 
@@ -162,6 +180,68 @@ pub async fn vault_change_password(app: AppHandle, current: String, new: String)
     })
     .await
     .map_err(|e| msg(e.to_string()))?
+}
+
+/// Save everything in Reach, plus the interface's remembered choices, to `path`.
+#[tauri::command]
+pub async fn backup_export(app: AppHandle, path: PathBuf, password: String, ui: UiState) -> Result<()> {
+    let password = Zeroizing::new(password);
+    let version = app.package_info().version.to_string();
+    // A key derivation to check the password: off the UI thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.touch();
+        let guard = state.lock();
+        let v = guard.as_ref().ok_or_else(|| msg("The vault is locked."))?;
+        backup::export(v, &password, &ui, &version, &path)
+    })
+    .await
+    .map_err(|e| msg(e.to_string()))?
+}
+
+/// Decrypt a backup and say what's in it. Nothing changes until `backup_restore`.
+#[tauri::command]
+pub async fn backup_open(app: AppHandle, path: PathBuf, password: String) -> Result<backup::Summary> {
+    let password = Zeroizing::new(password);
+    let version = app.package_info().version.to_string();
+    let state = app.state::<AppState>();
+    state.may_replace(&state.lock())?;
+    state.touch();
+    let opened = tauri::async_runtime::spawn_blocking(move || backup::open(&path, &password, &version))
+        .await
+        .map_err(|e| msg(e.to_string()))??;
+    let summary = opened.summary.clone();
+    *state.opened_backup() = Some(opened);
+    Ok(summary)
+}
+
+/// Replace everything with the opened backup, master password included.
+#[tauri::command]
+pub async fn backup_restore(state: State<'_, AppState>) -> Result<Restored> {
+    state.touch();
+    let mut guard = state.lock();
+    state.may_replace(&guard)?;
+    let opened = state
+        .opened_backup()
+        .take()
+        .ok_or_else(|| msg("Choose the backup again."))?;
+    let (vault, ui) = opened.restore(&state.vault_path)?;
+    let tree = Tree::from(&vault.data);
+    *guard = Some(vault);
+    Ok(Restored { tree, ui })
+}
+
+#[tauri::command]
+pub async fn backup_cancel(state: State<'_, AppState>) -> Result<()> {
+    *state.opened_backup() = None;
+    Ok(())
+}
+
+/// The restored data, and the interface choices to put back.
+#[derive(Serialize)]
+pub struct Restored {
+    tree: Tree,
+    ui: UiState,
 }
 
 #[tauri::command]

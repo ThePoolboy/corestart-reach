@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Backups** in Settings: **Export backup…** saves everything in Reach (folders, connections,
+  saved credentials with their passwords, settings, theme and open folders) to one
+  `.reachbackup` file, encrypted with your master password. **Import backup…** shows the
+  backup's date and what's in it, then replaces everything, master password included, and
+  keeps what you had as `vault.before-import.json`. A new install can **Restore from a
+  backup…** instead of setting a master password. Backups from a newer Reach are refused
+
 ## 0.2.0 (2026-10-04)
 
 - RDP connections can have a **Fixed size** screen: pick a common size or type your own

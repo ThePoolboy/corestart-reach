@@ -49,6 +49,20 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       opens Quick connect and Ctrl+K doesn't; the ⚡ button's tooltip says Ctrl+J. It survives a
       restart. **Reset** brings back Ctrl+K. Ctrl+C, a plain letter and a combination another
       action uses are refused with a reason; Escape cancels.
+- [ ] Settings → Backup → **Export backup…**: the save dialog suggests
+      `Reach backup <today>.reachbackup` in Documents. A wrong master password is refused and
+      nothing is written; the right one saves the file (Linux: `-rw-------`).
+- [ ] Change a connection, the theme and a shortcut, then **Import backup…** that file. A wrong
+      password is refused. The right one shows the backup's date and counts; **Cancel** changes
+      nothing. **Replace everything** brings back the connections, settings, theme and open
+      folders as they were, and `vault.before-import.json` appears next to the data file.
+- [ ] After importing a backup made with a different master password, Reach unlocks with the
+      backup's password and no longer with the old one.
+- [ ] New install (or an empty data folder): **Restore from a backup…** under **Get started**
+      restores everything without asking for a new master password. **Back** returns to setup.
+- [ ] A backup copied from Windows to Linux (or the other way) imports; RDP and SSH connections
+      open, apart from SSH key files that aren't on the new computer.
+- [ ] Choosing a file that isn't a backup says so.
 - [ ] Settings → Appearance: Light and Dark switch the look at once. System follows the
       desktop. The choice survives a restart and shows on the lock screen.
 

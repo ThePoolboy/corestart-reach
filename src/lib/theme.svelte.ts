@@ -53,6 +53,11 @@ export function setTheme(choice: ThemeChoice) {
   apply();
 }
 
+/** Apply the saved choice again, after a backup replaced it. */
+export function reloadTheme() {
+  setTheme(load());
+}
+
 /** The quick toggle: flip whatever is showing now. */
 export function toggleTheme() {
   setTheme(theme.light ? 'dark' : 'light');
