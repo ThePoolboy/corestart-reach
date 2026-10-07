@@ -50,19 +50,29 @@ fn fit(size: RdpSize, screen: (u32, u32)) -> (u32, u32) {
 }
 
 /// The mstsc settings, kept in `Default.rdp`, for a screen mode: either the remote
-/// desktop follows the window (dynamic resolution), or it keeps its size and the
-/// picture is scaled to the window (smart sizing).
+/// desktop follows the window (dynamic resolution), or it keeps its size. Smart
+/// sizing (scaling the picture) is always off: it stretches the remote desktop out
+/// of shape, and mstsc's window menu can still turn it on for a session.
+///
+/// Out of full screen, also undo what an earlier session left behind: a full
+/// screen or all-monitors setting (dynamic resolution doesn't work across
+/// monitors), and the saved window position, which reopens a maximised window.
+/// `None` removes the setting.
 #[cfg_attr(not(windows), allow(dead_code))]
-fn mstsc_options(screen: RdpScreen) -> [(&'static str, &'static str); 2] {
-    let fixed = screen == RdpScreen::Fixed;
-    [("dynamic resolution:i:", if fixed { "0" } else { "1" }), ("smart sizing:i:", if fixed { "1" } else { "0" })]
+fn mstsc_options(screen: RdpScreen) -> Vec<(&'static str, Option<&'static str>)> {
+    let dynamic = if screen == RdpScreen::Fixed { "0" } else { "1" };
+    let mut options = vec![("dynamic resolution:i:", Some(dynamic)), ("smart sizing:i:", Some("0"))];
+    if screen != RdpScreen::Fullscreen {
+        options.extend([("screen mode id:i:", Some("1")), ("use multimon:i:", Some("0")), ("winposstr:s:", None)]);
+    }
+    options
 }
 
 /// mstsc's `Default.rdp` with `options` set, or `None` if it already has them.
 /// mstsc saves the file as UTF-16 with a byte order mark; it's written back the
 /// same way it was read, and a new file is written the way mstsc writes it.
 #[cfg_attr(not(windows), allow(dead_code))]
-fn with_options(file: Option<&[u8]>, options: &[(&str, &str)]) -> Option<Vec<u8>> {
+fn with_options(file: Option<&[u8]>, options: &[(&str, Option<&str>)]) -> Option<Vec<u8>> {
     let file = file.unwrap_or(&[0xFF, 0xFE]);
     let utf16 = file.starts_with(&[0xFF, 0xFE]);
     let text = if utf16 {
@@ -79,14 +89,17 @@ fn with_options(file: Option<&[u8]>, options: &[(&str, &str)]) -> Option<Vec<u8>
         match options.iter().find(|(key, _)| body.starts_with(key)) {
             Some((key, value)) => {
                 missing.retain(|(k, _)| k != key);
-                out.push_str(key);
-                out.push_str(value);
-                out.push_str(&line[body.len()..]);
+                if let Some(value) = value {
+                    out.push_str(key);
+                    out.push_str(value);
+                    out.push_str(&line[body.len()..]);
+                }
             }
             None => out.push_str(line),
         }
     }
     for (key, value) in missing {
+        let Some(value) = value else { continue };
         if !out.is_empty() && !out.ends_with('\n') {
             out.push_str("\r\n");
         }
@@ -125,20 +138,34 @@ mod tests {
         };
         let follow = mstsc_options(RdpScreen::Window);
         let fixed = mstsc_options(RdpScreen::Fixed);
-        let before = "screen mode id:i:1\r\nsmart sizing:i:1\r\ndynamic resolution:i:0\r\nfull address:s:web1\r\n";
-        let after = "screen mode id:i:1\r\nsmart sizing:i:0\r\ndynamic resolution:i:1\r\nfull address:s:web1\r\n";
-        assert_eq!(with_options(Some(&utf16(before)), &follow), Some(utf16(after)));
-        assert_eq!(with_options(Some(&utf16(after)), &follow), None);
-        assert_eq!(with_options(Some(&utf16(after)), &fixed), Some(utf16(before)));
+        let full = mstsc_options(RdpScreen::Fullscreen);
+
+        // What an earlier session leaves behind: full screen across all monitors,
+        // smart sizing on, and a maximised window position.
+        let left = "screen mode id:i:2\r\nuse multimon:i:1\r\nsmart sizing:i:1\r\ndynamic resolution:i:0\r\n\
+                    winposstr:s:0,3,0,0,800,600\r\nfull address:s:web1\r\n";
+        let window = "screen mode id:i:1\r\nuse multimon:i:0\r\nsmart sizing:i:0\r\ndynamic resolution:i:1\r\n\
+                      full address:s:web1\r\n";
+        assert_eq!(with_options(Some(&utf16(left)), &follow), Some(utf16(window)));
+        assert_eq!(with_options(Some(&utf16(window)), &follow), None);
+        assert_eq!(
+            with_options(Some(&utf16(window)), &fixed),
+            Some(utf16(&window.replace("dynamic resolution:i:1", "dynamic resolution:i:0")))
+        );
+        // Full screen only gets dynamic resolution and no smart sizing.
+        assert_eq!(
+            with_options(Some(&utf16(left)), &full),
+            Some(utf16(&left.replace("smart sizing:i:1", "smart sizing:i:0").replace("resolution:i:0", "resolution:i:1")))
+        );
 
         // Missing settings are added; plain UTF-8 stays UTF-8; no file gets a new one.
         assert_eq!(
-            with_options(Some(b"full address:s:web1"), &follow).as_deref(),
+            with_options(Some(b"full address:s:web1"), &full).as_deref(),
             Some(&b"full address:s:web1\r\ndynamic resolution:i:1\r\nsmart sizing:i:0\r\n"[..])
         );
         assert_eq!(
             with_options(None, &fixed),
-            Some(utf16("dynamic resolution:i:0\r\nsmart sizing:i:1\r\n"))
+            Some(utf16("dynamic resolution:i:0\r\nsmart sizing:i:0\r\nscreen mode id:i:1\r\nuse multimon:i:0\r\n"))
         );
     }
 }
@@ -447,7 +474,7 @@ mod windows_impl {
     }
 
     /// `/v:host:port`, then full screen, a window at 80% of `screen` that the
-    /// remote desktop follows, or the fixed size (scaled to fit the window).
+    /// remote desktop follows, or the fixed size.
     fn arguments(c: &Resolved, screen: Option<(u32, u32)>) -> Vec<String> {
         let mut args = vec![format!("/v:{}", address(c))];
         let size = match (c.rdp_screen, screen) {
@@ -477,7 +504,7 @@ mod windows_impl {
         }
     }
 
-    /// Set dynamic resolution and smart sizing for this connection's screen mode.
+    /// Set mstsc up for this connection's screen mode ([`mstsc_options`]).
     /// mstsc has no switches for them; `/v` connections take them from
     /// `Default.rdp`. That file is mstsc's "last used settings", which it rewrites
     /// itself after connecting, so they're set again before every launch.
@@ -519,7 +546,7 @@ mod windows_impl {
 
     pub fn launch(app: &AppHandle, c: &Resolved) -> Result<()> {
         if let Err(e) = set_screen_mode(c.rdp_screen) {
-            // A fixed size can't scale without it; a window just might not resize.
+            // A fixed size can't stay fixed without it; a window just might not resize.
             if c.rdp_screen == RdpScreen::Fixed {
                 return Err(msg(format!("Couldn't set mstsc to the fixed screen size (Documents\\Default.rdp): {e}")));
             }
