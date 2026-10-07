@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-11)
 
 - **Backups** in Settings: **Export backup…** saves everything in Reach (folders, connections,
   saved credentials with their passwords, settings, theme and open folders) to one
@@ -8,6 +8,12 @@
   backup's date and what's in it, then replaces everything, master password included, and
   keeps what you had as `vault.before-import.json`. A new install can **Restore from a
   backup…** instead of setting a master password. Backups from a newer Reach are refused
+- Windows: RDP windows no longer reopen maximised after a session that was maximised or
+  full screen. Before every connection Reach also resets the window position, full screen and
+  all-monitors settings an earlier mstsc session left in `Documents\Default.rdp`
+- Windows: **Fixed size** shows the remote desktop at its real size, with scroll bars if the
+  window is smaller, instead of stretching it
+- New app icon: an R in the Corestart power ring
 
 ## 0.2.0 (2026-10-04)
 

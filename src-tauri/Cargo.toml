@@ -1,6 +1,6 @@
 [package]
 name = "corestart-reach"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Open-source RDP and SSH connection manager"
 license = "GPL-3.0-only"

@@ -27,6 +27,8 @@ under GPL-3.0.
 - **SSH** opens in its own terminal window. Logs in with a saved password, a key file,
   your ssh-agent or your usual `~/.ssh` keys, or keyboard-interactive / 2FA prompts.
   Host keys are checked against `~/.ssh/known_hosts`, the same file OpenSSH uses.
+- **Backups**: export everything to one encrypted file and restore it on another computer,
+  Windows or Linux.
 - **Quick connect** to any host without saving it (Ctrl+K).
 - **Saved credentials**: store a login once (e.g. a domain admin) and use it on many
   connections. Change the password in one place.
@@ -35,7 +37,7 @@ under GPL-3.0.
 
 ## Status
 
-Early development (0.2), ready for testing. RDP and SSH each open in their own window.
+Early development (0.3), ready for testing. RDP and SSH each open in their own window.
 Planned: tabs and embedded RDP.
 
 Tested on Windows 11, Fedora 44 Workstation, Fedora 44 KDE Plasma Desktop, Ubuntu Desktop

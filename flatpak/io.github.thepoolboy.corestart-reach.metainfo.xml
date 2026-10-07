@@ -23,6 +23,7 @@
       <li>RDP in a window the remote desktop follows, at a fixed screen size, or full screen</li>
       <li>SSH opens in its own terminal, with passwords, key files, ssh-agent or 2FA prompts</li>
       <li>Saved credentials shared by many connections, so a password changes in one place</li>
+      <li>Encrypted backups you can restore on another computer</li>
       <li>Quick connect to any host without saving it</li>
       <li>Folders with drag and drop, search, and keyboard shortcuts you can change</li>
       <li>Locks itself when you're away</li>
@@ -95,6 +96,17 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.3.0" date="2026-10-11">
+      <description>
+        <p>Encrypted backups, a new app icon, and steadier RDP windows on Windows.</p>
+        <ul>
+          <li>Export everything to one backup file encrypted with your master password, and restore it on any computer</li>
+          <li>A new install can start from a backup</li>
+          <li>Windows: RDP windows no longer reopen maximised, and fixed sizes are no longer stretched</li>
+          <li>A new app icon: an R in the Corestart power ring</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-04">
       <description>
         <p>A calmer interface, fixed screen sizes for RDP, and keyboard shortcuts you can change.</p>
