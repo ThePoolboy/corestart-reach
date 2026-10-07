@@ -36,7 +36,10 @@
 
   /** What each screen mode does, shown as the buttons' tooltips. */
   const SCREEN_TIPS: Record<RdpScreen, string> = {
-    window: 'The remote desktop resizes to fit the window',
+    // mstsc doesn't follow the window yet, so don't promise it on Windows.
+    window: navigator.userAgent.includes('Windows')
+      ? 'The remote desktop opens at the size of the window'
+      : 'The remote desktop resizes to fit the window',
     fixed: 'The remote desktop keeps the same size when you resize the window',
     fullscreen: 'The remote desktop fills the whole screen',
   };

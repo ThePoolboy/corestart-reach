@@ -96,19 +96,19 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       username + Domain field, `CORP\user`, and `user@corp.example.com`.
 - [ ] Quick connect (Ctrl+K) → RDP → host name, FQDN and IP (also `host:3390` if you
       have a non-standard port).
-- [ ] **Window** mode opens at about 80% of the screen; resizing it resizes the remote
+- [ ] **Window** mode opens at about 80% of the screen. Linux: resizing it resizes the remote
       desktop. **Full screen** mode fills the screen.
 - [ ] **Window** mode on a laptop at 125% or 150% display scaling (Windows): the window
-      fits on the screen with no scroll bars, and maximising it resizes the remote desktop.
+      fits on the screen with no scroll bars.
 - [ ] **Fixed size** (try 1280 × 720 and a custom size): the remote desktop has exactly
       that resolution (check in the remote Settings → Display). Linux: resizing or
       maximising the window scales the picture; no scroll bars, and on a screen smaller than
       the size the window still fits. Windows: the picture is never stretched; a window
       smaller than the size gets scroll bars.
-- [ ] **Window** mode (Windows): resize the window a few times, maximise it, then restore it.
-      The remote desktop follows every time. Disconnect while maximised, then connect again:
-      it opens as a normal window. Same after a session that used **Fullscreen**.
-- [ ] Switch a connection from Fixed size back to Window: it follows the window again
+- [ ] **Window** mode (Windows): maximise the window, disconnect, then connect again: it opens
+      as a normal window. Same after a session that used **Fullscreen**. (Known: the remote
+      desktop keeps the size it opened at when you resize the window.)
+- [ ] Switch a connection from Fixed size back to Window: it opens at the window's size again
       (Windows: Reach resets mstsc's settings in `Documents\Default.rdp` each time).
 - [ ] Copy and paste text both ways between the remote desktop and your machine.
 - [ ] **Flatpak:** the RDP window is sharp on a scaled display (125%, 150%), keyboard

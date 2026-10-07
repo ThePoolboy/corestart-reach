@@ -22,8 +22,9 @@ under GPL-3.0.
 - **Everything encrypted**: every host, username, password and note is kept in one file that
   nothing can read without your master password.
 - **RDP** opens in your system's own client: `mstsc` on Windows, FreeRDP on Linux.
-  Saved passwords are passed along, so you're logged straight in. Use a window the remote
-  desktop follows, a fixed screen size, or full screen.
+  Saved passwords are passed along, so you're logged straight in. Use a window, a fixed
+  screen size, or full screen. On Linux the remote desktop follows the window as you resize
+  it; on Windows it keeps the size it opened at, for now.
 - **SSH** opens in its own terminal window. Logs in with a saved password, a key file,
   your ssh-agent or your usual `~/.ssh` keys, or keyboard-interactive / 2FA prompts.
   Host keys are checked against `~/.ssh/known_hosts`, the same file OpenSSH uses.
