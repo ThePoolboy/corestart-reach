@@ -1,7 +1,7 @@
 # Corestart Reach
 
-A simple, modern RDP and SSH connection manager for Windows and Linux, in the spirit of
-mRemoteNG and Royal TS. Free and open source under GPL-3.0.
+A simple, modern RDP and SSH connection manager for Windows and Linux. Free and open source
+under GPL-3.0.
 
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on-GitHub-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/ThePoolboy)
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/thepoolboy)
@@ -36,7 +36,7 @@ mRemoteNG and Royal TS. Free and open source under GPL-3.0.
 ## Status
 
 Early development (0.2), ready for testing. RDP and SSH each open in their own window.
-Planned: import from mRemoteNG, tabs and embedded RDP.
+Planned: tabs and embedded RDP.
 
 Tested on Windows 11, Fedora 44 Workstation, Fedora 44 KDE Plasma Desktop, Ubuntu Desktop
 26.04 and Linux Mint 22.3 Cinnamon. The Flatpak should also run on other Linux

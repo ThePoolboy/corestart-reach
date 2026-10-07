@@ -7,4 +7,4 @@ Icon=io.github.thepoolboy.corestart-reach
 StartupWMClass=io.github.thepoolboy.corestart-reach
 Terminal=false
 Categories=Network;RemoteAccess;
-Keywords=rdp;ssh;remote;desktop;terminal;mremoteng;royal;
+Keywords=rdp;ssh;remote;desktop;terminal;

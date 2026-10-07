@@ -15,7 +15,7 @@
     <p>
       Corestart Reach keeps your remote desktop (RDP) and SSH connections, and the logins
       for them, in one encrypted file, and opens any of them with a double-click. It's a
-      simple, modern connection manager in the spirit of mRemoteNG and Royal TS.
+      simple, modern connection manager.
     </p>
     <ul>
       <li>Everything is encrypted with your master password (Argon2id and XChaCha20-Poly1305)</li>
