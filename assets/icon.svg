@@ -1,22 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3a3a3f"/>
-      <stop offset="1" stop-color="#1e1e21"/>
+      <stop offset="0" stop-color="#36abf6"/>
+      <stop offset="1" stop-color="#1b7fc6"/>
     </linearGradient>
   </defs>
-  <!-- charcoal tile with a signal-blue rim, so its edge shows on dark taskbars -->
-  <rect x="62" y="62" width="900" height="900" rx="198" fill="url(#bg)" stroke="#23a0f3" stroke-width="28"/>
-  <g transform="translate(0 22)">
-    <!-- signal arcs, as in the Corestart mark, bold enough for small sizes -->
-    <g fill="none" stroke="#2fa8f5" stroke-width="64" stroke-linecap="round">
-      <path d="M400 196a160 160 0 0 0 0 220M624 196a160 160 0 0 1 0 220"/>
-      <path d="M318 128a260 260 0 0 0 0 356M706 128a260 260 0 0 1 0 356"/>
-    </g>
-    <circle cx="512" cy="306" r="64" fill="#2fa8f5"/>
-    <!-- screen with a prompt -->
-    <rect x="208" y="520" width="608" height="344" rx="60" fill="#101012" stroke="#42a5e9" stroke-width="44"/>
-    <path d="M312 620l96 70-96 70" fill="none" stroke="#42a5e9" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M466 764h156" stroke="#f2f2f2" stroke-width="54" stroke-linecap="round"/>
+  <!-- signal-blue tile: each Corestart app gets its own letter and tile colour -->
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#bg)"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- the R stands in for the bar of the Corestart power symbol -->
+    <path d="M406.4 553.3V198.7h121.6a89.6 89.6 0 0 1 0 179.2H406.4M515.2 377.9L611.2 553.3" stroke-width="84.5"/>
+    <path d="M754.1 304.9A316 316 0 1 1 269.9 304.9" stroke-width="88"/>
   </g>
 </svg>
