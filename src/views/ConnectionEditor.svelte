@@ -37,7 +37,7 @@
   /** What each screen mode does, shown as the buttons' tooltips. */
   const SCREEN_TIPS: Record<RdpScreen, string> = {
     window: 'The remote desktop resizes to fit the window',
-    fixed: 'The remote desktop keeps one size; resizing the window scales the picture',
+    fixed: 'The remote desktop keeps the same size when you resize the window',
     fullscreen: 'The remote desktop fills the whole screen',
   };
 

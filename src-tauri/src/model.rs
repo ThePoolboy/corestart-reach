@@ -89,7 +89,8 @@ pub enum RdpScreen {
     /// The remote desktop follows the window's size.
     #[default]
     Window,
-    /// The remote desktop is always [`RdpSize`]; the window scales the picture.
+    /// The remote desktop is always [`RdpSize`]. On Linux the window scales the
+    /// picture; mstsc shows it at its real size, with scroll bars if needed.
     Fixed,
     Fullscreen,
 }
