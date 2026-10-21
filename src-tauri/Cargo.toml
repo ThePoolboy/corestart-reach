@@ -34,8 +34,10 @@ tauri-build = { version = "2.7.0", features = [] }
 glib = "0.18"
 
 # Self-update from GitHub Releases. Windows only: Flatpak updates the Linux version.
+# Without the default "zip" feature: updates are a signed setup.exe, never a zip,
+# and the updater's zip 4 has extraction advisories (RUSTSEC-2026-0367..0369).
 [target."cfg(windows)".dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 windows = { version = "0.62.2", features = ["Win32_Security_Credentials", "Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }
 
 # Argon2 is painfully slow unoptimised; keep unlocking fast in dev builds too.
