@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-10-20)
 
 - **Recent connections** on Home: the last five connections you opened, newest first, with
   their folder. Double-click one or press Enter to connect; right-click → **Remove from Recent**

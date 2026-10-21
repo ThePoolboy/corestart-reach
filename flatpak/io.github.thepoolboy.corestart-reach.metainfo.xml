@@ -96,6 +96,15 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.3.1" date="2026-10-20">
+      <description>
+        <p>Recent connections on the home screen, and a Caps Lock warning.</p>
+        <ul>
+          <li>Home lists the last five connections you opened; double-click one to connect</li>
+          <li>Password boxes warn you when Caps Lock is on</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-10-11">
       <description>
         <p>Encrypted backups, a new app icon, and steadier RDP windows on Windows.</p>
