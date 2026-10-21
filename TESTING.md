@@ -31,6 +31,10 @@ Get the packages from the latest green run under **Actions → Build → Artifac
 - [ ] First start asks you to create a master password (8+ characters, typed twice).
 - [ ] Lock (the padlock at the end of the search row, or Ctrl+L), then unlock with the right
       password. A wrong password is refused.
+- [ ] Turn Caps Lock on and type in the master password box: "Caps Lock is on." shows under it.
+      It goes away when you turn Caps Lock off or click outside the box. It also shows on first
+      start, in **Change master password…**, the backup password, the RDP login box and a
+      connection's password, but not in boxes that aren't passwords (Host, Username).
 - [ ] Quit and restart: your connections are still there.
 - [ ] Linux: `ls -l ~/.var/app/io.github.thepoolboy.corestart-reach/data/io.github.thepoolboy.corestart-reach/` shows
       `vault.json` as `-rw-------`.
@@ -82,6 +86,11 @@ Get the packages from the latest green run under **Actions → Build → Artifac
       start screen. With unsaved edits it asks first. Home shows how many connections there are,
       or "No connections yet" before any are added, and its **Quick connect** and **New
       connection** buttons work.
+- [ ] Open a few connections: Home lists the last five under **Recent**, newest first, with their
+      folder. A single click only selects one; a double-click or Enter connects and moves it to
+      the top. Right-click → **Remove from Recent** takes it off. Quick connects and copies made
+      with **Duplicate** aren't listed. The list survives a restart, and importing a backup
+      brings back the backup's list.
 - [ ] Search (Ctrl+F) finds by name, host and folder; Enter connects to the first result.
 - [ ] Saved credentials: create one, use it on two connections, change its password once,
       and both connections use the new one. **Edit** next to the credential in a connection

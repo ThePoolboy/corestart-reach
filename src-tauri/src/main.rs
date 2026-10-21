@@ -173,6 +173,7 @@ fn main() {
             commands::save_folder,
             commands::delete_folder,
             commands::move_item,
+            commands::remove_recent,
             commands::save_credential,
             commands::delete_credential,
             commands::connect,

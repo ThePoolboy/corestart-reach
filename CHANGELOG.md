@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Recent connections** on Home: the last five connections you opened, newest first, with
+  their folder. Double-click one or press Enter to connect; right-click → **Remove from Recent**
+  takes one off the list. Quick connects aren't listed, and the list is kept in your encrypted
+  data file (and in backups)
+- Password boxes say **Caps Lock is on.** while you type in them with Caps Lock on: on the lock
+  screen, in Settings, in the RDP login box, and for passwords saved on connections and
+  credentials
+
 ## 0.3.0 (2026-10-11)
 
 - **Backups** in Settings: **Export backup…** saves everything in Reach (folders, connections,

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Login } from '../lib/api';
+  import CapsLockHint from './CapsLockHint.svelte';
   import Modal from './Modal.svelte';
 
   // Shown when an RDP connection has no saved username or password. What is
@@ -72,6 +73,7 @@
           {reveal ? 'Hide' : 'Show'}
         </button>
       </div>
+      <CapsLockHint />
     </div>
     <p class="hint">
       Domain accounts: fill in Domain, or type <code>CORP\user</code> or <code>user@corp.example.com</code>.

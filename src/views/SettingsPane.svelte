@@ -21,6 +21,7 @@
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte';
   import { toast } from '../lib/toast.svelte';
   import { checkForUpdate, updates } from '../lib/update.svelte';
+  import CapsLockHint from './CapsLockHint.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
 
   let {
@@ -362,6 +363,7 @@
               {/if}
             </label>
           </div>
+          <CapsLockHint />
           {#if error}
             <div class="error-text">{error}</div>
           {/if}
@@ -411,6 +413,7 @@
               use:focus
             />
           </label>
+          <CapsLockHint />
           {#if backupError}
             <div class="error-text">{backupError}</div>
           {/if}

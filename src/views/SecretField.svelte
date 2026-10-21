@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SecretUpdate } from '../lib/api';
+  import CapsLockHint from './CapsLockHint.svelte';
 
   // A password box for a secret the UI never gets to see. If one is saved it
   // shows "Saved" with Change/Remove; the result is a SecretUpdate for Rust.
@@ -87,6 +88,7 @@
       {/if}
     </div>
   {/if}
+  <CapsLockHint />
   {#if hint}
     <span class="hint">{hint}</span>
   {/if}
