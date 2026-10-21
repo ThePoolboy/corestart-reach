@@ -4,6 +4,7 @@
 //! Every name and address is made up (example.com, 10.x addresses).
 
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use uuid::Uuid;
 
@@ -167,6 +168,13 @@ fn fill(data: &mut VaultData) {
         ..Conn::ssh("Bastion", "bastion.example.com", "ops")
     }
     .save(data, None);
+
+    // Opened in the last few hours, newest first, for Recent on Home.
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    for (hours_ago, name) in ["web-01", "DC-01", "db-primary", "Bastion"].into_iter().enumerate() {
+        let id = data.connections.iter().find(|c| c.name == name).unwrap().id;
+        data.set_last_connected(id, Some(now - hours_ago as u64 * 3600)).unwrap();
+    }
 }
 
 #[test]
@@ -190,4 +198,5 @@ fn sample_data_is_valid() {
     fill(&mut data);
     assert_eq!(data.folders.len(), 5);
     assert_eq!(data.connections.len(), 14);
+    assert_eq!(data.connections.iter().filter(|c| c.last_connected.is_some()).count(), 4);
 }

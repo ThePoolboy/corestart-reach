@@ -31,6 +31,7 @@ under GPL-3.0.
 - **Backups**: export everything to one encrypted file and restore it on another computer,
   Windows or Linux.
 - **Quick connect** to any host without saving it (Ctrl+K).
+- **Recent connections** on Home: the last five you opened, a double-click away.
 - **Saved credentials**: store a login once (e.g. a domain admin) and use it on many
   connections. Change the password in one place.
 - Folders with drag and drop, right-click menus, search, keyboard shortcuts you can change,

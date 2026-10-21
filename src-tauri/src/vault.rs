@@ -162,6 +162,17 @@ impl Unlocked {
     /// Encrypt and write the vault. Writes to a temp file first and keeps the
     /// previous version as `<name>.bak`, so a crash mid-save can't lose data.
     pub fn save(&self, path: &Path) -> Result<()> {
+        self.write(path, true)
+    }
+
+    /// Save without replacing `<name>.bak`, for bookkeeping such as Recent:
+    /// otherwise opening a connection would overwrite the previous version.
+    /// The temp file and rename still keep a crash from losing data.
+    pub fn save_keep_backup(&self, path: &Path) -> Result<()> {
+        self.write(path, false)
+    }
+
+    fn write(&self, path: &Path, backup: bool) -> Result<()> {
         let plain = Zeroizing::new(serde_json::to_vec(&self.data)?);
         let nonce = random::<24>()?;
         let body = cipher(&self.key)
@@ -186,7 +197,7 @@ impl Unlocked {
             f.write_all(&serde_json::to_vec_pretty(&file)?)?;
             f.sync_all()?;
         }
-        if path.exists() {
+        if backup && path.exists() {
             fs::copy(path, path.with_extension("json.bak"))?;
         }
         fs::rename(&tmp, path)?;
@@ -291,6 +302,22 @@ mod tests {
         let bak = path.with_extension("json.bak");
         assert!(unlock(&bak, "old password").is_err());
         assert!(unlock(&bak, "new password").is_ok());
+    }
+
+    #[test]
+    fn bookkeeping_save_keeps_the_backup() {
+        let path = temp_path("vault.json");
+        let mut v = create(&path, "correct horse").unwrap();
+        v.data.folders.push(Folder { id: uuid::Uuid::new_v4(), name: "First".into(), parent_id: None });
+        v.save(&path).unwrap();
+        v.data.folders[0].name = "Second".into();
+        v.save(&path).unwrap();
+
+        v.data.folders[0].name = "Third".into();
+        v.save_keep_backup(&path).unwrap();
+        assert_eq!(unlock(&path, "correct horse").unwrap().data.folders[0].name, "Third");
+        let bak = path.with_extension("json.bak");
+        assert_eq!(unlock(&bak, "correct horse").unwrap().data.folders[0].name, "First");
     }
 
     #[test]

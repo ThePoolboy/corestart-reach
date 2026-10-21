@@ -16,7 +16,7 @@
   import Icon from '../lib/Icon.svelte';
   import { keysFor, pressed } from '../lib/shortcuts';
   import { toast, toastError } from '../lib/toast.svelte';
-  import { isInside, searchRows, visibleRows, type Row } from '../lib/tree';
+  import { folderPath, isInside, searchRows, visibleRows, type Row } from '../lib/tree';
   import { autoCheck, installUpdate } from '../lib/update.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
@@ -158,6 +158,14 @@
     return tree.folders.length ? `${connections} in ${count(tree.folders.length, 'folder')}` : connections;
   });
 
+  /** The last five connections you opened, newest first, for the Home screen. */
+  const recent = $derived(
+    tree.connections
+      .filter((c) => c.lastConnected)
+      .sort((a, b) => (b.lastConnected ?? 0) - (a.lastConnected ?? 0))
+      .slice(0, 5),
+  );
+
   // ---- navigation -------------------------------------------------------
 
   function go(next: View) {
@@ -214,8 +222,9 @@
           domain: result.domain,
           retry: (l) => launch(name, protocol, attempt, l),
         };
-      } else if (protocol === 'rdp') {
-        toast(`Opening ${name}…`);
+      } else {
+        if (result.tree) onchange(result.tree);
+        if (protocol === 'rdp') toast(`Opening ${name}…`);
       }
     } catch (e) {
       toastError(e);
@@ -497,6 +506,30 @@
     };
   }
 
+  /** Right-click on a connection under Recent on Home. */
+  function recentMenu(e: MouseEvent, c: Connection) {
+    e.preventDefault();
+    ctx = {
+      x: e.clientX,
+      y: e.clientY,
+      for: `recent:${c.id}`,
+      items: [
+        { label: 'Connect', icon: 'play', action: () => connect(c.id) },
+        { label: 'Edit', action: () => go({ kind: 'connection', id: c.id }) },
+        'separator',
+        { label: 'Remove from Recent', icon: 'x', action: () => removeRecent(c.id) },
+      ],
+    };
+  }
+
+  async function removeRecent(id: string) {
+    try {
+      onchange(await api.removeRecent(id));
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
   /** Shift+F10 or the Menu key opens the menu for the selected row. */
   function keyMenu(e: KeyboardEvent) {
     const row = rows.find((r) => rowId(r) === selectedId);
@@ -760,6 +793,40 @@
                 <Icon name="plus" /> New connection
               </button>
             </div>
+            {#if recent.length}
+              <section class="recent" aria-labelledby="recent-title">
+                <h2 id="recent-title">Recent</h2>
+                <ul>
+                  {#each recent as c (c.id)}
+                    {@const path = folderPath(tree.folders, c.folderId)}
+                    <li>
+                      <!-- Like the sidebar: double-click or Enter connects. A single
+                           click only selects, so Home stays open for the second one. -->
+                      <button
+                        class="row"
+                        class:menu-on={ctx?.for === `recent:${c.id}`}
+                        title="{c.host} (double-click to connect)"
+                        ondblclick={() => connect(c.id)}
+                        onkeydown={(e) => {
+                          if (e.key !== 'Enter') return;
+                          e.preventDefault();
+                          connect(c.id);
+                        }}
+                        oncontextmenu={(e) => recentMenu(e, c)}
+                      >
+                        <span class="proto {c.protocol}" role="img" aria-label={c.protocol.toUpperCase()}>
+                          <Icon name={c.protocol === 'rdp' ? 'monitor' : 'terminal'} />
+                        </span>
+                        <span class="name">
+                          {c.name}
+                          {#if path}<small>{path}</small>{/if}
+                        </span>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              </section>
+            {/if}
           </div>
         {/if}
       {/key}
@@ -1045,5 +1112,29 @@
     justify-content: center;
     gap: 8px;
     margin-top: 12px;
+  }
+  .recent {
+    width: min(400px, 100%);
+    margin-top: 24px;
+    text-align: left;
+  }
+  .recent h2 {
+    margin: 0 0 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .recent ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .recent .row {
+    padding-left: 10px;
+  }
+  .recent .row:focus {
+    background: var(--bg-selected);
   }
 </style>

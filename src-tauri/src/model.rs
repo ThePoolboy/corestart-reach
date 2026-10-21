@@ -155,6 +155,9 @@ pub struct Connection {
     pub rdp_size: RdpSize,
     #[serde(default)]
     pub notes: String,
+    /// When it was last opened, in seconds since 1970, for Recent on Home.
+    #[serde(default)]
+    pub last_connected: Option<u64>,
 }
 
 /// A reusable username/password, e.g. a domain admin account shared by many servers.
@@ -193,6 +196,7 @@ pub struct ConnectionView {
     pub rdp_screen: RdpScreen,
     pub rdp_size: RdpSize,
     pub notes: String,
+    pub last_connected: Option<u64>,
 }
 
 impl From<&Connection> for ConnectionView {
@@ -213,6 +217,7 @@ impl From<&Connection> for ConnectionView {
             rdp_screen: c.rdp_screen,
             rdp_size: c.rdp_size,
             notes: c.notes.clone(),
+            last_connected: c.last_connected,
         }
     }
 }
@@ -381,6 +386,7 @@ impl VaultData {
                     rdp_screen: RdpScreen::default(),
                     rdp_size: RdpSize::default(),
                     notes: String::new(),
+                    last_connected: None,
                 });
                 self.connections.len() - 1
             }
@@ -407,6 +413,7 @@ impl VaultData {
         let mut copy = self.connection(id)?.clone();
         copy.id = Uuid::new_v4();
         copy.name = format!("{} (copy)", copy.name);
+        copy.last_connected = None; // a copy hasn't been opened yet
         let new_id = copy.id;
         self.connections.push(copy);
         Ok(new_id)
@@ -470,6 +477,17 @@ impl VaultData {
             .find(|c| c.id == id)
             .ok_or_else(|| msg("That connection no longer exists."))?;
         c.folder_id = folder;
+        Ok(())
+    }
+
+    /// Note when a connection was opened, for Recent on Home (`None` takes it off).
+    pub fn set_last_connected(&mut self, id: Uuid, when: Option<u64>) -> Result<()> {
+        let c = self
+            .connections
+            .iter_mut()
+            .find(|c| c.id == id)
+            .ok_or_else(|| msg("That connection no longer exists."))?;
+        c.last_connected = when;
         Ok(())
     }
 
@@ -710,6 +728,32 @@ mod tests {
         d.save_connection(update).unwrap();
         assert_eq!(d.connection(id).unwrap().password.as_deref(), Some("pw"));
         assert_eq!(d.connection(id).unwrap().name, "srv1");
+    }
+
+    #[test]
+    fn recent_connections() {
+        let mut d = VaultData::default();
+        let id = d.save_connection(input("srv1")).unwrap();
+        assert_eq!(d.connection(id).unwrap().last_connected, None);
+        d.set_last_connected(id, Some(1_791_000_000)).unwrap();
+
+        // Editing keeps it; a copy hasn't been opened yet.
+        let mut update = input("srv1");
+        update.id = Some(id);
+        d.save_connection(update).unwrap();
+        assert_eq!(d.connection(id).unwrap().last_connected, Some(1_791_000_000));
+        let copy = d.duplicate_connection(id).unwrap();
+        assert_eq!(d.connection(copy).unwrap().last_connected, None);
+
+        d.set_last_connected(id, None).unwrap();
+        assert_eq!(d.connection(id).unwrap().last_connected, None);
+        assert!(d.set_last_connected(Uuid::new_v4(), Some(1)).is_err(), "missing connection");
+
+        // Vaults saved before Recent existed.
+        let c: Connection =
+            serde_json::from_str(r#"{"id":"6f1c8c1e-6d3c-4a51-9f4e-1d2a3b4c5d6e","name":"a","protocol":"ssh","host":"a"}"#)
+                .unwrap();
+        assert_eq!(c.last_connected, None);
     }
 
     #[test]

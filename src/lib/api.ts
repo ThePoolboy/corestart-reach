@@ -32,6 +32,8 @@ export interface Connection {
   rdpScreen: RdpScreen;
   rdpSize: RdpSize;
   notes: string;
+  /** When it was last opened, in seconds since 1970 (Recent on Home); null if never. */
+  lastConnected: number | null;
 }
 
 export interface Credential {
@@ -107,7 +109,8 @@ export interface Login {
 }
 
 export type ConnectOutcome =
-  | { status: 'launched' }
+  /** `tree` is set for a saved connection: it's now first under Recent. */
+  | { status: 'launched'; tree: Tree | null }
   | { status: 'needCredentials'; username: string; domain: string };
 
 export type SshEvent =
@@ -174,6 +177,8 @@ export const api = {
   /** Move a connection or folder into `folderId` (null = top level). */
   moveItem: (kind: 'connection' | 'folder', id: string, folderId: string | null) =>
     invoke<Tree>('move_item', { kind, id, folderId }),
+  /** Take a connection off Recent on Home. */
+  removeRecent: (id: string) => invoke<Tree>('remove_recent', { id }),
   saveCredential: (input: CredentialInput) => invoke<Saved>('save_credential', { input }),
   deleteCredential: (id: string) => invoke<Tree>('delete_credential', { id }),
 

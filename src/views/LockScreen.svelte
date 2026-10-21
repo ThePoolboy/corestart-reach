@@ -3,6 +3,7 @@
   import { api, errorText, type Tree, type VaultStatus } from '../lib/api';
   import { BACKUP_FILTERS, describeBackup, fileName, restoreRememberedChoices } from '../lib/backup';
   import { toast } from '../lib/toast.svelte';
+  import CapsLockHint from './CapsLockHint.svelte';
 
   let { status, onunlock }: { status: VaultStatus; onunlock: (tree: Tree) => void } = $props();
 
@@ -110,6 +111,7 @@
           <span class="hint warn">Passwords don't match.</span>
         {/if}
       </label>
+      <CapsLockHint />
       <p class="hint">There's no way to recover this password. If you forget it, your saved connections are gone.</p>
     {:else if restoreFrom}
       <h1 id="lock-title">Restore from a backup</h1>
@@ -123,6 +125,7 @@
         aria-label="Password for this backup"
         use:focus
       />
+      <CapsLockHint />
     {:else}
       <h1 id="lock-title">Unlock your connections</h1>
       <input
@@ -134,6 +137,7 @@
         aria-label="Master password"
         use:focus
       />
+      <CapsLockHint />
     {/if}
 
     {#if error}

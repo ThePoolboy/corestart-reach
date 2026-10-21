@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
@@ -94,11 +94,24 @@ impl AppState {
     /// Apply a change, save the vault, and return the new tree. If saving fails
     /// the change is rolled back so memory and disk never disagree.
     fn modify(&self, f: impl FnOnce(&mut VaultData) -> Result<()>) -> Result<Tree> {
+        self.change(f, true)
+    }
+
+    /// Like `modify`, but leaves `vault.json.bak` as it was. For Recent, which
+    /// changes on every connect and shouldn't push out the previous version.
+    fn modify_recent(&self, f: impl FnOnce(&mut VaultData) -> Result<()>) -> Result<Tree> {
+        self.change(f, false)
+    }
+
+    fn change(&self, f: impl FnOnce(&mut VaultData) -> Result<()>, backup: bool) -> Result<Tree> {
         self.touch();
         let mut guard = self.lock();
         let v = guard.as_mut().ok_or_else(|| msg("The vault is locked."))?;
         let before = v.data.clone();
-        if let Err(e) = f(&mut v.data).and_then(|_| v.save(&self.vault_path)) {
+        let save = |v: &vault::Unlocked| {
+            if backup { v.save(&self.vault_path) } else { v.save_keep_backup(&self.vault_path) }
+        };
+        if let Err(e) = f(&mut v.data).and_then(|_| save(v)) {
             v.data = before;
             return Err(e);
         }
@@ -326,6 +339,12 @@ pub async fn move_item(
     })
 }
 
+/// Take a connection off Recent on Home.
+#[tauri::command]
+pub async fn remove_recent(state: State<'_, AppState>, id: Uuid) -> Result<Tree> {
+    state.modify_recent(|d| d.set_last_connected(id, None))
+}
+
 #[tauri::command]
 pub async fn save_credential(state: State<'_, AppState>, input: CredentialInput) -> Result<Saved> {
     let mut id = Uuid::nil();
@@ -354,7 +373,8 @@ pub struct Saved {
 #[derive(Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum ConnectOutcome {
-    Launched,
+    /// A saved connection comes with the tree, which now has it first under Recent.
+    Launched { tree: Option<Tree> },
     /// Nothing saved to log in with; the UI should ask and call `connect` again.
     #[serde(rename_all = "camelCase")]
     NeedCredentials { username: String, domain: String },
@@ -399,7 +419,13 @@ pub async fn connect(
     if let Some(login) = login {
         login.apply(&mut target);
     }
-    launch(&app, &state, target)
+    let mut outcome = launch(&app, &state, target)?;
+    if let ConnectOutcome::Launched { tree } = &mut outcome {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        // The session is open either way; a failed save only leaves Recent as it was.
+        *tree = state.modify_recent(|d| d.set_last_connected(id, Some(now))).ok();
+    }
+    Ok(outcome)
 }
 
 /// Connect to a host that isn't saved: `server`, `server:3390`, `10.0.0.5`,
@@ -472,7 +498,7 @@ fn launch(app: &AppHandle, state: &AppState, target: Resolved) -> Result<Connect
             }
         }
     }
-    Ok(ConnectOutcome::Launched)
+    Ok(ConnectOutcome::Launched { tree: None })
 }
 
 #[tauri::command]
